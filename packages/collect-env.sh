@@ -92,6 +92,7 @@ if [ -n "${nginx_master}" ]; then
 
 	    if [ "${nginx_ppid}" -ne 1 ]; then
 	        echo "  ---> nginx master process ppid ${nginx_ppid} != 1 (a Docker container?)"
+	        echo ""
 	        echo "   ---> ps o pid,ppid,user,command ${nginx_ppid}:"
 	        ps o pid,ppid,user,command ${nginx_ppid} 2>&1
 	        echo ""
@@ -203,6 +204,12 @@ if [ "${found_agent_conf}" = "yes" ]; then
     echo ""
     echo " ---> ps axu | grep -i '[^/]amplify[-]'"
     ps axu | grep -i '[^/]amplify[-]'
+    echo ""
+fi
+
+if [ -n "${amplify_user}" ]; then
+    echo "===> checking if user \"${amplify_user}\" can see nginx master processes:"
+    sudo -u ${amplify_user} /bin/sh -c "ps xao pid,ppid,command | grep 'nginx[:]'" 2>&1
     echo ""
 fi
 
@@ -399,9 +406,24 @@ if mount | egrep 'proc|sysfs' > /dev/null 2>&1; then
 	    echo ""
 	    echo " ---> sudo -u ${amplify_user} /bin/sh -c 'cat /proc/${test_worker_pid}/io'"
 	    sudo -u ${amplify_user} /bin/sh -c "cat /proc/${test_worker_pid}/io" 2>&1
+
+	    echo ""
+	    echo " ---> sudo -u ${amplify_user} /bin/sh -c 'head -5 /proc/vmstat'"
+	    sudo -u ${amplify_user} /bin/sh -c "head -5 /proc/vmstat" 2>&1
+
+	    echo ""
+	    echo " ---> sudo -u ${amplify_user} /bin/sh -c 'ls -la /sys/block'"
+	    sudo -u ${amplify_user} /bin/sh -c "ls -la /sys/block" 2>&1
 	fi
     else
 	echo " ---> can't find any nginx workers."
+    fi
+    
+    if test -e /proc/user_beancounters -o \
+	    -e /proc/bc; then
+	echo ""
+	echo "===> found /proc/user_beancounters or /proc/bc (OpenVZ?)"
+	echo ""
     fi
 else
     echo " ---> can find procfs or sysfs mounts"
@@ -450,8 +472,8 @@ if [ -f "${agent_log_file}" ]; then
     echo " ---> tail -20 ${agent_log_file}"
     tail -20 ${agent_log_file}
     echo ""
-    echo " ---> egrep -i 'failed' ${agent_log_file}"
-    egrep -i 'failed' ${agent_log_file}
+    echo " ---> egrep -i 'failed to' ${agent_log_file} | tail -50"
+    egrep -i 'failed to' ${agent_log_file} | tail -50
 else
     echo "===> can't find ${agent_log_file}"
 fi

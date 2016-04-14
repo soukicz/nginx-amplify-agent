@@ -35,6 +35,9 @@ IGNORED_DIRECTIVES = [
 
 
 def set_line_number(string, location, tokens):
+    # check and limit CPU usage
+    context.check_and_limit_cpu_consumption()
+
     if len(tokens) == 1:
         line_number = lineno(location, string)
         tokens_cache[tokens[0]] = line_number
@@ -205,6 +208,7 @@ class NginxConfigParser(object):
         self.filename = filename
         self.folder = '/'.join(self.filename.split('/')[:-1])  # stores path to folder with main config
         self.files = {}  # to prevent cycle files and line indexing
+        self.parsed_cache = {}  # to cache multiple includes
         self.broken_files = set()  # to prevent reloading broken files
         self.index = []  # stores index for all sections (points to file number and line number)
         self.ssl_certificates = []
@@ -213,6 +217,9 @@ class NginxConfigParser(object):
 
     def parse(self):
         self.tree = self.__logic_parse(self.__pyparse(self.filename))
+
+        # drop cached
+        self.parsed_cache = None
 
     @staticmethod
     def get_file_info(filename):
@@ -318,73 +325,76 @@ class NginxConfigParser(object):
         """
         result = {}
         for filename in self.find_includes(path):
+            # skip files we couldn't read, etc
             if filename in self.broken_files:
                 continue
-            elif filename not in self.files:
-                file_index = len(self.files)
-                self.files[filename] = {
-                    'index': file_index,
-                    'lines': 0,
-                    'size': 0,
-                    'mtime': 0,
-                    'permissions': ''
-                }
-            else:
-                file_index = self.files[filename]['index']
 
-            try:
-                size, mtime, permissions = self.get_file_info(filename)
+            if filename not in self.files:
+                # read file contents
+                try:
+                    size, mtime, permissions = self.get_file_info(filename)
+                    if size > self.max_size:
+                        self.errors.append('failed to read %s due to: too large, %s bytes' % (filename, size))
+                        self.broken_files.add(filename)
+                        continue
 
-                self.files[filename]['size'] = size
-                self.files[filename]['mtime'] = mtime
-                self.files[filename]['permissions'] = permissions
+                    source = open(filename).read()
+                    lines_count = source.count('\n')
+                except Exception as e:
+                    exception_name = e.__class__.__name__
+                    message = 'failed to read %s due to: %s' % (filename, exception_name)
+                    self.errors.append(message)
+                    self.broken_files.add(filename)
+                    context.log.error(message)
+                    context.log.debug('additional info:', exc_info=True)
+                    continue
+                else:
+                    # store the results
+                    file_index = len(self.files)
 
-                if size > self.max_size:
-                    self.errors.append('failed to read %s due to: too large, %s bytes' % (filename, size))
+                    self.files[filename] = {
+                        'index': file_index,
+                        'lines': lines_count,
+                        'size': size,
+                        'mtime': mtime,
+                        'permissions': permissions
+                    }
+
+                # Replace windows line endings with unix ones
+                source = source.replace('\r\n', '\n')
+
+                # check that file contains some information (not commented)
+                all_lines_commented = True
+                for line in source.split('\n'):
+                    line = line.replace(' ', '')
+                    if line and not line.startswith('#'):
+                        all_lines_commented = False
+                        break
+
+                if all_lines_commented:
                     continue
 
-                source = open(filename).read()
-                lines_count = source.count('\n')
-                self.files[filename]['lines'] = lines_count
-            except Exception as e:
-                exception_name = e.__class__.__name__
-                message = 'failed to read %s due to: %s' % (filename, exception_name)
-                self.errors.append(message)
-                self.broken_files.add(filename)
-                del self.files[filename]
-                context.log.error(message)
-                context.log.debug('additional info:', exc_info=True)
-                continue
+                # replace \' with " because otherwise we cannot parse it
+                slash_quote = '\\' + "'"
+                source = source.replace(slash_quote, '"')
 
-            # Replace windows line endings with unix ones.
-            source = source.replace('\r\n', '\n')
+                try:
+                    parsed = list(self.script.parseString(source, parseAll=True))
+                except Exception as e:
+                    exception_name = e.__class__.__name__
+                    message = 'failed to parse %s due to %s' % (filename, exception_name)
+                    self.broken_files.add(filename)
+                    self.errors.append(message)
+                    context.log.error(message)
+                    context.log.debug('additional info:', exc_info=True)
+                    continue
 
-            # check that file contains some information (not commented)
-            all_lines_commented = True
-            for line in source.split('\n'):
-                line = line.replace(' ',  '')
-                if line and not line.startswith('#'):
-                    all_lines_commented = False
-                    break
-
-            if all_lines_commented:
-                continue
-
-            # replace \' with " because otherwise we cannot parse it
-            slash_quote = '\\' + "'"
-            source = source.replace(slash_quote, '"')
-
-            try:
-                parsed = self.script.parseString(source, parseAll=True)
-            except Exception as e:
-                exception_name = e.__class__.__name__
-                message = 'failed to parse %s due to %s' % (filename, exception_name)
-                self.errors.append(message)
-                context.log.error(message)
-                context.log.debug('additional info:', exc_info=True)
-                continue
-
-            result[file_index] = list(parsed)
+                self.parsed_cache[file_index] = parsed[:]
+                result[file_index] = parsed
+            else:
+                # if we already have the file parsed
+                file_index = self.files[filename]['index']
+                result[file_index] = self.parsed_cache.get(file_index, [])
 
         return result
 
@@ -573,3 +583,4 @@ class NginxConfigParser(object):
             return map(lambda x: self.simplify(tree=x), tree)
 
         return result
+

@@ -37,12 +37,12 @@ class NginxAccessLogsCollector(AbstractCollector):
         'nginx.http.request.body_bytes_sent': 'body_bytes_sent',
         'nginx.http.request.bytes_sent': 'bytes_sent',
         'nginx.http.request.length': 'request_length',
-        'nginx.upstream.http.status.1xx': 'upstream_status',
-        'nginx.upstream.http.status.2xx': 'upstream_status',
-        'nginx.upstream.http.status.3xx': 'upstream_status',
-        'nginx.upstream.http.status.4xx': 'upstream_status',
-        'nginx.upstream.http.status.5xx': 'upstream_status',
-        'nginx.upstream.http.response.length': 'upstream_response_length',
+        'nginx.upstream.status.1xx': 'upstream_status',
+        'nginx.upstream.status.2xx': 'upstream_status',
+        'nginx.upstream.status.3xx': 'upstream_status',
+        'nginx.upstream.status.4xx': 'upstream_status',
+        'nginx.upstream.status.5xx': 'upstream_status',
+        'nginx.upstream.response.length': 'upstream_response_length',
         'nginx.cache.bypass': 'upstream_cache_status',
         'nginx.cache.expired': 'upstream_cache_status',
         'nginx.cache.hit': 'upstream_cache_status',
@@ -320,12 +320,12 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.upstream.response.time.max
         nginx.upstream.response.time.pctl95
         nginx.upstream.response.time.count
-        nginx.upstream.http.status.1xx
-        nginx.upstream.http.status.2xx
-        nginx.upstream.http.status.3xx
-        nginx.upstream.http.status.4xx
-        nginx.upstream.http.status.5xx
-        nginx.upstream.http.response.length
+        nginx.upstream.status.1xx
+        nginx.upstream.status.2xx
+        nginx.upstream.status.3xx
+        nginx.upstream.status.4xx
+        nginx.upstream.status.5xx
+        nginx.upstream.response.length
         
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
@@ -347,7 +347,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'upstream_status' in data:
             status = data['upstream_status']
             suffix = '%sxx' % status[0]
-            metric_name = 'nginx.upstream.http.status.%s' % suffix
+            metric_name = 'nginx.upstream.status.%s' % suffix
             upstream_response = True if suffix in ('2xx', '3xx') else False  # Set flag for upstream length processing
             self.statsd.incr(metric_name)
 
@@ -356,7 +356,7 @@ class NginxAccessLogsCollector(AbstractCollector):
                 self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
 
         if upstream_response and 'upstream_response_length' in data:
-            metric_name, value = 'nginx.upstream.http.response.length', data['upstream_response_length']
+            metric_name, value = 'nginx.upstream.response.length', data['upstream_response_length']
             self.statsd.incr(metric_name, value)
 
             # call custom filters

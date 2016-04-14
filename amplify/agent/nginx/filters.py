@@ -33,9 +33,11 @@ class Filter(object):
                     else:
                         normalized_value = v
 
-                    if '*' in normalized_value:
-                        template = re.escape(normalized_value).replace("\\*", ".*")
-                        normalized_value = re.compile(template)
+                    # try to treat any value as a regex
+                    try:
+                        normalized_value = re.compile(normalized_value)
+                    except:
+                        pass
 
                     normalized_key = k.replace('$', '')
                     self.data[normalized_key] = normalized_value

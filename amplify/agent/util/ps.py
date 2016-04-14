@@ -3,7 +3,6 @@ import time
 import psutil
 
 from amplify.agent.util import subp
-from amplify.agent.context import context
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -35,7 +34,7 @@ class Process(psutil.Process):
         blocking = interval is not None and interval > 0.0
         num_cpus = psutil.cpu_count()
 
-        if psutil._POSIX:
+        if psutil.POSIX:
             def timer():
                 return psutil._timer() * num_cpus
         else:

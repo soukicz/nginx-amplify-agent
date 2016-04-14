@@ -114,9 +114,11 @@ def get_prefix_and_conf_path(cmd, configure=None):
         else:
             conf_path = DEFAULT_CONFPATH
 
+    # remove trailing slashes from prefix
+    prefix = '/' + '/'.join(filter(lambda x: x, prefix.split('/')))
+
     # start processing conf_path
     # if it has not an absolutely path, then we should add prefix to it
-
     if not conf_path.startswith('/'):
         conf_path = '%s/%s' % (prefix, conf_path)
 

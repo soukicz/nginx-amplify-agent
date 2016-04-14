@@ -177,7 +177,9 @@ class Supervisor(object):
                 changed_containers.add(obj.type)
 
         for obj_type in changed_containers:
+            context.cloud_restart = True
             self.containers[obj_type].stop_objects()
+            context.cloud_restart = False
 
         # global config changes
         config_changed = context.app_config.apply(cloud_response.config)

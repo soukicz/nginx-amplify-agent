@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+
 from itertools import cycle
 
 from amplify.agent import Singleton
@@ -9,6 +10,7 @@ from amplify.agent.statsd import StatsdContainer
 from amplify.agent.eventd import EventdContainer
 from amplify.agent.metad import MetadContainer
 from amplify.agent.configd import ConfigdContainer
+from amplify.agent.util.ps import Process
 
 
 try:
@@ -31,9 +33,13 @@ sys.setrecursionlimit(2048)
 
 class Context(Singleton):
     def __init__(self):
+        self.pid = None
+        self.psutil_process = None
+        self.cpu_last_check = 0
+
         self.set_pid()
 
-        self.version_major = 0.31
+        self.version_major = 0.32
         self.version_build = 1
         self.version = '%s-%s' % (self.version_major, self.version_build)
         self.environment = None
@@ -57,6 +63,7 @@ class Context(Singleton):
 
     def set_pid(self):
         self.pid = os.getpid()
+        self.psutil_process = Process(self.pid)
 
     def setup_environment(self):
         """
@@ -117,6 +124,27 @@ class Context(Singleton):
     @property
     def log(self):
         return self.default_log
+
+    def check_and_limit_cpu_consumption(self):
+        """
+        Checks CPU consumption and if it's more than something performs time.sleep
+        """
+        try:
+            now = time.time()
+            cpu_limit = self.app_config['daemon']['cpu_limit']
+            time_to_sleep = self.app_config['daemon']['cpu_sleep']
+
+            if self.psutil_process and now > self.cpu_last_check + time_to_sleep/5:
+                self.cpu_last_check = now
+                user_percent, system_percent = self.psutil_process.cpu_percent()
+                if user_percent >= cpu_limit:
+                    self.default_log.debug(
+                        'CPU usage is %s user, %s system, sleeping for %s s' %
+                        (user_percent, system_percent, time_to_sleep)
+                    )
+                    time.sleep(time_to_sleep)
+        except:
+            self.default_log.debug('failed to check CPU usage', exc_info=True)
 
 
 context = Context()

@@ -138,6 +138,11 @@ fi
 
 
 %changelog
+* Wed Apr 13 2016 Mike Belov <dedm@nginx.com> 0.32-1
+- 0.32-1
+- Bug fixes
+- psutil==4.0.0 support
+
 * Thu Mar 31 2016 Mike Belov <dedm@nginx.com> 0.31-1
 - 0.31-1
 - Bug fixes

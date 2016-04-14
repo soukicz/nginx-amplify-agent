@@ -116,7 +116,7 @@ class NginxContainer(AbstractContainer):
         :return: list of dict: nginx object definitions
         """
         # get ps info
-        ps_cmd = 'ps -xa -o pid,ppid,command | egrep "PID|nginx" | grep -v egrep'
+        ps_cmd = "ps xao pid,ppid,command | grep 'nginx[:]'"
         try:
             ps, _ = subp.call(ps_cmd)
             context.log.debug('ps nginx output: %s' % ps)

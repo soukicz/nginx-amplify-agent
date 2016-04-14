@@ -49,9 +49,6 @@ class SystemObject(AbstractObject):
                 (context.version, context.pid, self.uuid, self.hostname)
             )
 
-            # log main host params
-            context.log.info('')
-
         super(SystemObject, self).start()
 
     def stop(self, *args, **kwargs):

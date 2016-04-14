@@ -22,7 +22,7 @@ class FiltersTestCase(BaseTestCase):
             'data': [
                 {'filename': 'foo.txt'},
                 {'$request_method': 'post'},
-                {'$request_uri': '*.gif'}
+                {'$request_uri': '.*\.gif'}
             ]
         }
 
@@ -31,8 +31,8 @@ class FiltersTestCase(BaseTestCase):
         assert_that(filtr.filter_rule_id, equal_to('1'))
         assert_that(filtr.metric, equal_to('http.something'))
         assert_that(filtr.filename, equal_to('foo.txt'))
-        assert_that(filtr.data['request_method'], equal_to('POST'))
-        assert_that(filtr.data['request_uri'], equal_to(re.compile(".*\\.gif")))
+        assert_that(filtr.data['request_method'], equal_to(re.compile("POST")))
+        assert_that(filtr.data['request_uri'], equal_to(re.compile(".*\.gif")))
 
     def test_init_without_filename(self):
         raw_filter_data = {

@@ -45,7 +45,7 @@ class SystemMetricsCollector(AbstractCollector):
 
     def agent(self):
         """ send amplify.agent.status by default """
-        self.statsd.agent('status', 1)
+        self.statsd.agent('amplify.agent.status', 1)
 
     def virtual_memory(self):
         """ virtual memory """
@@ -193,7 +193,7 @@ class SystemMetricsCollector(AbstractCollector):
                 new_stamp, new_value = time.time(), getattr(io, method)
                 prev_stamp, prev_value = self.previous_values.get(interface, {}).get(metric, [None, None])
 
-                if prev_stamp:
+                if prev_stamp and new_value >= prev_value:
                     delta_value = new_value - prev_value
                     metric_full_name = '%s|%s' % (metric, interface)
                     self.statsd.incr(metric_full_name, delta_value)

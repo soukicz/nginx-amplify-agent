@@ -17,6 +17,8 @@ class Config(AbstractConfig):
     config = dict(
         daemon=dict(
             pid=os.getcwd() + '/amplify_agent.pid',
+            cpu_limit=10.0,
+            cpu_sleep=0.2,
         ),
         containers=dict(
         ),
@@ -32,7 +34,7 @@ class Config(AbstractConfig):
             api_key=None,
             uuid=None,
             hostname=None
-        )
+        ),
     )
 
     config_changes = dict()
@@ -58,7 +60,9 @@ class DevelopmentConfig(Config):
             api_key='DEFAULT'
         ),
         daemon=dict(
-            pid='/var/run/amplify_agent.pid'
+            pid='/var/run/amplify_agent.pid',
+            cpu_limit=1000.0,
+            cpu_sleep=0.01
         )
     )
 
@@ -79,5 +83,3 @@ class SandboxConfig(Config):
 
 class ProductionConfig(Config):
     write_new = True
-
-

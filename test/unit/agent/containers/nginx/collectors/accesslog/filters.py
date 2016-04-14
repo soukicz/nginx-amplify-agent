@@ -101,7 +101,7 @@ class LogsFiltersTestCase(NginxCollectorTestCase):
                 filter_rule_id=2,
                 metric='nginx.http.request.body_bytes_sent',
                 data=[
-                    {'$request_uri': '/img*'},
+                    {'$request_uri': '/img.*'},
                     {'$server_protocol': 'HTTP/1.2'}
                 ]
             ))

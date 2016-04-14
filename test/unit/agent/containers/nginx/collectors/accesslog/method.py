@@ -206,12 +206,12 @@ class LogsPerMethodTestCase(NginxCollectorTestCase):
         assert_that(counters, has_item('nginx.upstream.request.count'))
         assert_that(counters, has_item('nginx.upstream.next.count'))
         assert_that(counters, has_item('nginx.cache.miss'))
-        assert_that(counters, has_item('nginx.upstream.http.status.2xx'))
-        assert_that(counters, has_item('nginx.upstream.http.response.length'))
+        assert_that(counters, has_item('nginx.upstream.status.2xx'))
+        assert_that(counters, has_item('nginx.upstream.response.length'))
         assert_that(counters['nginx.upstream.request.count'][0][1], equal_to(1))
         assert_that(counters['nginx.upstream.next.count'][0][1], equal_to(1))
-        assert_that(counters['nginx.upstream.http.status.2xx'][0][1], equal_to(1))
-        assert_that(counters['nginx.upstream.http.response.length'][0][1], equal_to(20))
+        assert_that(counters['nginx.upstream.status.2xx'][0][1], equal_to(1))
+        assert_that(counters['nginx.upstream.response.length'][0][1], equal_to(20))
 
         # histogram
         histogram = metrics['timer']
@@ -246,12 +246,12 @@ class LogsPerMethodTestCase(NginxCollectorTestCase):
         assert_that(counters, has_item('nginx.upstream.request.count'))
         assert_that(counters, has_item('nginx.upstream.next.count'))
         assert_that(counters, has_item('nginx.cache.miss'))
-        assert_that(counters, has_item('nginx.upstream.http.status.3xx'))
-        assert_that(counters, has_item('nginx.upstream.http.response.length'))
+        assert_that(counters, has_item('nginx.upstream.status.3xx'))
+        assert_that(counters, has_item('nginx.upstream.response.length'))
         assert_that(counters['nginx.upstream.request.count'][0][1], equal_to(1))
         assert_that(counters['nginx.upstream.next.count'][0][1], equal_to(1))
-        assert_that(counters['nginx.upstream.http.status.3xx'][0][1], equal_to(1))
-        assert_that(counters['nginx.upstream.http.response.length'][0][1], equal_to(40))
+        assert_that(counters['nginx.upstream.status.3xx'][0][1], equal_to(1))
+        assert_that(counters['nginx.upstream.response.length'][0][1], equal_to(40))
 
         # histogram
         histogram = metrics['timer']

@@ -15,6 +15,10 @@ class TestingConfig(Config):
     write_new = True
 
     config_changes = dict(
+        daemon=dict(
+            cpu_limit=1000.0,
+            cpu_sleep=0.01
+        ),
         cloud=dict(
             api_url=DEFAULT_API_URL,
             verify_ssl_cert=False,

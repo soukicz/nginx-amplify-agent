@@ -3,6 +3,8 @@
 import json
 import os
 import sys
+import time
+
 from optparse import OptionParser, Option
 
 sys.path.append(os.getcwd())  # to make amplify libs available
@@ -66,6 +68,8 @@ if __name__ == '__main__':
     else:
         filename = options.config
 
+    start_time = time.time()
+
     cfg = NginxConfig(filename=filename)
     print_args = dict(indent=4, sort_keys=True) if options.pretty else dict()
 
@@ -97,6 +101,11 @@ if __name__ == '__main__':
 
         print('\n\033[32mConfig errors for %s\033[0m' % filename)
         print(json.dumps(cfg.parser_errors, **print_args))
+
     else:
         print('\n\033[32mLight parse results for %s\033[0m' % filename)
         print(json.dumps(cfg.get_all_files(), **print_args))
+
+    end_time = time.time()
+
+    print('\n\033[32mParsed in %s seconds\033[0m' % (end_time-start_time))
