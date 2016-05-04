@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import traceback
+
 import amplify
 
 amplify_path = '/'.join(amplify.__file__.split('/')[:-1])
@@ -12,8 +13,7 @@ monkey.patch_all(socket=False, ssl=False, select=False)
 
 from optparse import OptionParser, Option
 
-from amplify.agent.util import configreader
-
+from amplify.agent.common.util import configreader
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -79,11 +79,12 @@ if __name__ == '__main__':
     if action in ('configtest', 'start'):
         rc = test_config(options.config, options.pid)
         print("")
+
         if action == 'configtest' or rc:
             sys.exit(rc)
 
     try:
-        from amplify.agent.context import context
+        from amplify.agent.common.context import context
         context.setup(
             app='agent',
             config_file=options.config,
@@ -98,7 +99,7 @@ if __name__ == '__main__':
         supervisor = Supervisor(foreground=options.foreground)
 
         if not options.foreground:
-            from amplify.agent.runner import Runner
+            from amplify.agent.common.runner import Runner
             daemon_runner = Runner(supervisor)
             daemon_runner.do_action()
         else:

@@ -12,44 +12,7 @@ __email__ = "dedm@nginx.com"
 class Singleton(object):
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls, **kwargs):
         if not cls._instance:
             cls._instance = super(Singleton, cls).__new__(cls)
         return cls._instance
-
-
-class CommonDataTank(Singleton):
-    def __init__(self):
-        self.clients = defaultdict(dict)
-
-    def register(self, type, object_id, client):
-        """
-        Registers some client
-        :param type: object type (prefix)
-        :param object_id: object id
-        :param client: some client
-        """
-        self.clients[type][object_id] = client
-
-    def unregister(self, type, object_id):
-        """
-        Unregisters client
-        :param type: object type (prefix)
-        :param object_id: object id
-        """
-        del self.clients[type][object_id]
-
-    def flush(self, type):
-        result = {}
-        for object_id, client in self.clients.get(type, {}).iteritems():
-            data = client.flush()
-            if data:
-                result[object_id] = data
-        return result
-
-
-class CommonDataClient(object):
-    def __init__(self, object=None):
-        self.object = object
-        self.current = {}
-        self.delivery = {}

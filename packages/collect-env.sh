@@ -100,13 +100,16 @@ if [ -n "${nginx_master}" ]; then
 
 	    if [ -n "${nginx_conf_option}" ]; then
 		echo "  ---> started with config file: ${nginx_conf_option}"
-		echo ""
 		ls -la ${nginx_conf_option}
+		echo ""
 	    fi
 
-	    test -f "${nginx_bin}" && \
-	    echo "  ---> version and configure options:" && \
-	    ${nginx_bin} -V 2>&1 && \
+	    if [ -f "${nginx_bin}" ]; then
+		echo "  ---> version and configure options:"
+		${nginx_bin} -V 2>&1
+	    else
+		echo "  ---> can't find ${nginx_bin} !"
+	    fi
 	    echo ""
 	fi
 

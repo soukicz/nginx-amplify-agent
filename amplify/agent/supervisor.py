@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
-import time
-import pprint
-import gevent
 import copy
+import pprint
+import time
+import gevent
 
 from threading import current_thread
 
-from amplify.agent.context import context
-from amplify.agent.util import loader
-from amplify.agent.bridge import Bridge
-from amplify.agent.util.threads import spawn
-from amplify.agent.errors import AmplifyCriticalException
-from amplify.agent.cloud import CloudResponse
+from amplify.agent.common.cloud import CloudResponse
+from amplify.agent.common.context import context
+from amplify.agent.common.errors import AmplifyCriticalException
+from amplify.agent.common.util import loader
+from amplify.agent.common.util.threads import spawn
+from amplify.agent.managers.bridge import Bridge
+
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -25,11 +26,12 @@ class Supervisor(object):
     """
     Agent supervisor
 
-    Starts dedicated threads for each data source
+    Starts dedicated threads for each manager.
     """
+    # TODO: Unify the manager init and supervision process (object managers vs. bridge)
 
-    CONTAINER_CLASS = '%sContainer'
-    CONTAINER_MODULE = 'amplify.agent.containers.%s.%s'
+    MANAGER_CLASS = '%sManager'
+    MANAGER_MODULE = 'amplify.agent.managers.%s.%s'
 
     def __init__(self, foreground=False):
         # daemon specific
@@ -46,35 +48,37 @@ class Supervisor(object):
         self.pidfile_timeout = 1
 
         # init
-        self.containers = {}
+        self.object_managers = {}
+        self.object_manager_order = ['system', 'nginx', 'plus']
         self.bridge = None
+        self.bridge_object = None
         self.start_time = int(time.time())
         self.last_cloud_talk_time = 0
         self.is_running = True
 
-    def init_containers(self):
+    def init_object_managers(self):
         """
-        Tries to load and create all objects containers specified in config
+        Tries to load and create all object managers specified in config
         """
-        containers_from_local_config = context.app_config['containers']
+        object_managers_from_local_config = context.app_config['containers']
 
-        for container_name in containers_from_local_config.keys():
+        for object_type in self.object_manager_order:
             try:
-                container_classname = self.CONTAINER_CLASS % container_name.title()
-                container_class = loader.import_class(self.CONTAINER_MODULE % (container_name, container_classname))
+                object_manager_classname = self.MANAGER_CLASS % object_type.title()
+                manager_class = loader.import_class(self.MANAGER_MODULE % (object_type, object_manager_classname))
 
                 # copy object configs
-                if container_name in self.containers:
-                    object_configs = copy.copy(self.containers[container_name].object_configs)
+                if object_type in self.object_managers:
+                    object_configs = copy.copy(self.object_managers[object_type].object_configs)
                 else:
                     object_configs = None
 
-                self.containers[container_name] = container_class(
+                self.object_managers[object_type] = manager_class(
                     object_configs=object_configs
                 )
-                context.log.debug('loaded container "%s" from %s' % (container_name, container_class))
+                context.log.debug('loaded "%s" object manager from %s' % (object_type, manager_class))
             except:
-                context.log.error('failed to load container %s' % container_name, exc_info=True)
+                context.log.error('failed to load %s object manager' % object_type, exc_info=True)
 
     def run(self):
         # get correct pid
@@ -84,16 +88,18 @@ class Supervisor(object):
         current_thread().name = 'supervisor'
 
         # get initial config from cloud
-        self.talk_to_cloud()
+        self.talk_to_cloud(initial=True)
 
-        # run containers
-        self.init_containers()
-        if not self.containers:
-            context.log.error('no containers configured, stopping')
+        # init object managers
+        self.init_object_managers()
+
+        if not self.object_managers:
+            context.log.error('no object managers configured, stopping')
             return
 
-        # run bridge thread
-        self.bridge = spawn(Bridge().run)
+        # run bridge manager
+        self.bridge_object = Bridge()
+        self.bridge = spawn(self.bridge_object.start)
 
         # main cycle
         while True:
@@ -105,13 +111,17 @@ class Supervisor(object):
             try:
                 context.inc_action_id()
 
-                for container in self.containers.itervalues():
-                    container._discover_objects()
-                    container.run_objects()
-                    container.schedule_cloud_commands()
+                for object_manager_name in self.object_manager_order:
+                    object_manager = self.object_managers[object_manager_name]
+                    object_manager.run()
 
                 try:
-                    self.talk_to_cloud(top_object=context.top_object.definition)
+                    if context.objects.root_object:
+                        context.inc_action_id()
+                        self.talk_to_cloud(root_object=context.objects.root_object.definition)
+                    else:
+                        pass
+                        # context.default_log.debug('No root object defined during supervisor main run')
                 except AmplifyCriticalException:
                     pass
 
@@ -126,27 +136,30 @@ class Supervisor(object):
     def stop(self):
         self.is_running = False
 
-        bridge = Bridge()
-        bridge.flush_all()
+        if self.bridge_object:
+            self.bridge_object.flush_metrics()
 
-        for container in self.containers.itervalues():
-            container.stop_objects()
+        for object_manager_name in reversed(self.object_manager_order):
+            object_manager = self.object_managers[object_manager_name]
+            object_manager.stop()
 
-    def talk_to_cloud(self, top_object=None):
+    def talk_to_cloud(self, root_object=None, force=False, initial=False):
         """
         Asks cloud for config, object configs, filters, etc
         Applies gathered data to objects and agent config
 
-        :param top_object: {} definition dict of a top object
+        :param root_object: {} definition dict of a top object
+        :param force: bool will skip time check
+        :param initial: bool first run
         """
         now = int(time.time())
-        if now <= self.last_cloud_talk_time + context.app_config['cloud']['talk_interval']:
+        if not force and now <= self.last_cloud_talk_time + context.app_config['cloud']['talk_interval']:
             return
 
         # talk to cloud
         try:
             cloud_response = CloudResponse(
-                context.http_client.post('agent/', data=top_object)
+                context.http_client.post('agent/', data=root_object)
             )
         except:
             context.log.error('could not connect to cloud', exc_info=True)
@@ -166,33 +179,65 @@ class Supervisor(object):
             )
 
         # update special object configs and filters
-        changed_containers = set()
+        changed_object_managers = set()
+        matched_object_configs = set()
         for obj in cloud_response.objects:
-            container = self.containers.get(obj.type)
-            if not container:
+            object_manager = self.object_managers.get(obj.type)
+            if not object_manager:
                 continue
 
-            if container.object_configs.get(obj.id, {}) != obj.config:
-                container.object_configs[obj.id] = obj.config
-                changed_containers.add(obj.type)
+            if obj.id in object_manager.object_configs:
+                matched_object_configs.add(obj.id)
 
-        for obj_type in changed_containers:
-            context.cloud_restart = True
-            self.containers[obj_type].stop_objects()
-            context.cloud_restart = False
+            if object_manager.object_configs.get(obj.id, {}) != obj.config:
+                context.log.info(
+                    'object config has changed. now "%s" %s is running with: %s' %
+                    (obj.type, obj.id, pprint.pformat(obj.config))
+                )
+                object_manager.object_configs[obj.id] = obj.config
+                changed_object_managers.add(obj.type)
+                matched_object_configs.add(obj.id)
+
+        # purge obsoleted object configs
+        for object_type, object_manager in self.object_managers.iteritems():
+            for obj_id in object_manager.object_configs.keys():
+                if obj_id not in matched_object_configs:
+                    context.log.debug(
+                        'object config has changed. now "%s" %s is running with default settings' %
+                        (object_type, obj_id)
+                    )
+                    del object_manager.object_configs[obj_id]
+                    changed_object_managers.add(object_type)
 
         # global config changes
         config_changed = context.app_config.apply(cloud_response.config)
-        if config_changed:
-            context.http_client.update_cloud_url()
-            context.cloud_restart = True
-            if self.containers:
-                context.log.info('config has changed. now running with: %s' % pprint.pformat(context.app_config.config))
-                for container in self.containers.itervalues():
-                    container.stop_objects()
-                self.init_containers()
 
-        context.cloud_restart = False
+        # perform restarts
+        if config_changed or len(changed_object_managers) > 0:
+            context.cloud_restart = True
+
+            if self.bridge_object:
+                self.bridge_object.flush_metrics()
+
+            if config_changed:
+                context.log.debug(
+                    'app config has changed. now running with: %s' %
+                    pprint.pformat(context.app_config.config)
+                )
+
+                context.http_client.update_cloud_url()
+
+                if self.object_managers:
+                    for object_manager_name in reversed(self.object_manager_order):
+                        object_manager = self.object_managers[object_manager_name]
+                        object_manager.stop()
+            elif len(changed_object_managers) > 0:
+                for obj_type in changed_object_managers:
+                    self.object_managers[obj_type].stop()
+            if not initial:
+                self.init_object_managers()
+            context.cloud_restart = False
+
         self.last_cloud_talk_time = int(time.time())
 
     def check_bridge(self):
@@ -201,4 +246,4 @@ class Supervisor(object):
         """
         if self.bridge.ready and self.bridge.exception:
             context.log.debug('bridge exception: %s' % self.bridge.exception)
-            self.bridge = gevent.spawn(Bridge().run)
+            self.bridge = gevent.spawn(Bridge().start)

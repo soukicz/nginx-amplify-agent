@@ -32,7 +32,7 @@ else
 
     # Change API URL to 1.1
     if [ -f "${agent_conf_file}" ]; then
-	    sh -c "sed -i.old 's/api_url.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.1/' \
+	    sh -c "sed -i.old 's/api_url.*receiver.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.2/' \
 	    ${agent_conf_file}"
     else
         test -f "${agent_conf_file}.default" && \

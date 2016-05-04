@@ -111,7 +111,7 @@ elif [ $1 -eq 2 ] ; then
 
     # Change API URL to 1.1
     if [ -f "%{agent_conf_file}" ]; then
-	    sh -c "sed -i.old 's/api_url.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.1/' \
+	    sh -c "sed -i.old 's/api_url.*receiver.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.2/' \
 	    %{agent_conf_file}"
     else
         test -f "%{agent_conf_file}.default" && \
@@ -138,6 +138,11 @@ fi
 
 
 %changelog
+* Fri Apr 29 2016 Mike Belov <dedm@nginx.com> 0.33-1
+- 0.33-1
+- NGINX+ objects support
+- Bug fixes
+
 * Wed Apr 13 2016 Mike Belov <dedm@nginx.com> 0.32-1
 - 0.32-1
 - Bug fixes

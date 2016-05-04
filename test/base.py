@@ -10,12 +10,11 @@ import shutil
 
 from unittest import TestCase
 
-import test.config.app
+import test.unit.agent.common.config.app
 
-from amplify.agent.util import subp
-from amplify.agent.util import configreader
-from amplify.agent.context import context
-from amplify.agent.containers.abstract import AbstractObject
+from amplify.agent.common.util import configreader, subp
+from amplify.agent.common.context import context
+from amplify.agent.objects.abstract import AbstractObject
 
 
 __author__ = "Mike Belov"
@@ -29,11 +28,11 @@ __email__ = "dedm@nginx.com"
 class BaseTestCase(TestCase):
     def setup_method(self, method):
         imp.reload(configreader)
-        imp.reload(test.config.app)
+        imp.reload(test.unit.agent.common.config.app)
 
         context.setup(
             app='test',
-            app_config=test.config.app.TestingConfig()
+            app_config=test.unit.agent.common.config.app.TestingConfig()
         )
         context.setup_thread_id()
 
@@ -42,7 +41,7 @@ class BaseTestCase(TestCase):
         )
 
         # modify http client to store http requests
-        from amplify.agent.util.http import HTTPClient
+        from amplify.agent.common.util.http import HTTPClient
         self.http_requests = []
 
         original_get = HTTPClient.get
@@ -59,6 +58,8 @@ class BaseTestCase(TestCase):
         HTTPClient.get = fake_get
         HTTPClient.post = fake_post
 
+        import amplify.agent.common.util.tail
+        amplify.agent.common.util.tail.OFFSET_CACHE = {}
 
     def teardown_method(self, method):
         pass
@@ -68,20 +69,20 @@ class WithConfigTestCase(BaseTestCase):
 
     def setup_method(self, method):
         super(WithConfigTestCase, self).setup_method(method)
-        self.original_file = test.config.app.TestingConfig.filename
+        self.original_file = test.unit.agent.common.config.app.TestingConfig.filename
         self.fake_config_file = '%s.%s' % (self.original_file, self._testMethodName)
-        test.config.app.TestingConfig.filename = self.fake_config_file
+        test.unit.agent.common.config.app.TestingConfig.filename = self.fake_config_file
 
     def teardown_method(self, method):
         if os.path.exists(self.fake_config_file):
             os.remove(self.fake_config_file)
-        test.config.app.TestingConfig.filename = self.original_file
+        test.unit.agent.common.config.app.TestingConfig.filename = self.original_file
 
     def mk_test_config(self, config=None):
         if os.path.exists(self.original_file):
             shutil.copyfile(self.original_file, self.fake_config_file)
-        imp.reload(test.config.app)
-        context.app_config = test.config.app.TestingConfig()
+        imp.reload(test.unit.agent.common.config.app)
+        context.app_config = test.unit.agent.common.config.app.TestingConfig()
 
 
 class NginxCollectorTestCase(BaseTestCase):
@@ -109,9 +110,6 @@ class NginxCollectorTestCase(BaseTestCase):
         local_id = random.randint(1, 10000000)
 
         self.fake_object = FakeNginxObject(
-            definition={
-                'local_id': local_id,
-            },
             data={
                 'bin_path': '/usr/sbin/nginx',
                 'conf_path': '/etc/nginx/nginx.conf',

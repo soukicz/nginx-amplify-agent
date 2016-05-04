@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-import sys
 import os
+import sys
 
 sys.path.insert(0, '%s/amplify' % os.getcwd())
 
 from setuptools import setup, find_packages
 
-from amplify.agent.util.host import is_deb, is_rpm, is_amazon
+from amplify.agent.common.util.host import is_deb, is_rpm, is_amazon
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -34,7 +34,7 @@ elif is_deb():
 
 setup(
     name="nginx-amplify-agent",
-    version="0.32",
+    version="0.33",
     author="Mike Belov",
     author_email="dedm@nginx.com",
     description="NGINX Amplify Agent",

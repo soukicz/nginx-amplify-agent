@@ -450,7 +450,7 @@ ${sudo_cmd} service amplify-agent start > /dev/null 2>&1 < /dev/null
 if [ $? -eq 0 ]; then
     printf "\033[32m All done.\033[0m\n\n"
 else
-    printf "\033[31m Installation failed.\033[0m\n\n"
+    printf "\033[31m Couldn't start the agent, please check /var/log/amplify-agent/agent.log\033[0m\n\n"
     exit 1
 fi
 

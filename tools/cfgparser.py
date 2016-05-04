@@ -9,13 +9,13 @@ from optparse import OptionParser, Option
 
 sys.path.append(os.getcwd())  # to make amplify libs available
 
-from amplify.agent.context import context
+from amplify.agent.common.context import context
 context.setup(
     app='agent',
     config_file='etc/agent.conf.development',
 )
 
-from amplify.agent.nginx.config.config import NginxConfig
+from amplify.agent.objects.nginx.config import NginxConfig
 
 
 __author__ = "Mike Belov"
