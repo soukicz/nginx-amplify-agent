@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
+from amplify.agent.common.context import context
 from amplify.agent.common.util.escape import prep_raw
 
 
@@ -40,7 +41,7 @@ class NginxAccessLogParser(object):
         'time_iso8601': ['.+', str],
         'time_local': ['.+', str],
         'upstream_response_time': ['.+', str],
-        'upstream_response_length': ['\d+', int],
+        'upstream_response_length': ['.+', int],
         'upstream_connect_time': ['.+', str],
         'upstream_header_time': ['.+', str],
         'upstream_status': ['.+', str],
@@ -66,7 +67,8 @@ class NginxAccessLogParser(object):
         self.regex = None
         current_key = None
 
-        self.raw_format = prep_raw(self.raw_format)
+        # preprocess raw format and if we have trailing spaces in format we should remove them
+        self.raw_format = prep_raw(self.raw_format).rstrip()
 
         def finalize_key():
             key_without_dollar = current_key[1:]
@@ -128,6 +130,7 @@ class NginxAccessLogParser(object):
 
         # parse the line
         common = self.regex.match(line)
+
         if common:
             for key in self.keys:  # TODO: Remove extra processing by using a set of keys.
                 func = self.common_variables.get(key, self.default_variable)[1]
@@ -153,6 +156,12 @@ class NginxAccessLogParser(object):
                             result[key] = array_value
                 else:
                     result[key] = value
+        else:
+            context.default_log.debug(
+                'could not parse line "%s" with regex "%s"' % (
+                    line, self.regex_string
+                )
+            )
 
         # parse sub fields
         if 'request' in result:

@@ -286,3 +286,27 @@ class LogParserTestCase(BaseTestCase):
 
         for key in expected_keys:
             assert_that(parsed, has_item(key))
+
+    def test_format_with_trailing_space(self):
+        user_format = '$remote_addr - $remote_user [$time_local] "$request" ' + \
+                      '$status $body_bytes_sent "$http_referer" ' + \
+                      '"$http_user_agent" "$http_x_forwarded_for" ' + \
+                      'rt=$request_time ua="$upstream_addr" ' + \
+                      'us="$upstream_status" ut="$upstream_response_time" ' + \
+                      'ul="$upstream_response_length" ' + \
+                      'cs=$upstream_cache_status ' + \
+                      'sn=$server_name     '
+
+        expected_keys = [
+            'time_local', 'status'
+        ]
+
+        line = '180.76.15.138 - - [05/May/2016:15:26:57 +0200] "GET / HTTP/1.1" 200 16060 ' + \
+               '"-" "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)" ' + \
+               '"-" rt=0.258 ua="-" us="-" ut="-" ul="-" cs=- sn=differentsimgirls.com'
+
+        parser = NginxAccessLogParser(user_format)
+        parsed = parser.parse(line)
+
+        for key in expected_keys:
+            assert_that(parsed, has_item(key))

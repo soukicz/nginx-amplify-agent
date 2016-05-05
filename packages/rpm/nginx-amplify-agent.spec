@@ -138,6 +138,14 @@ fi
 
 
 %changelog
+* Thu May 5 2016 Mike Belov <dedm@nginx.com> 0.33-3
+- 0.33-3
+- Bug fixes
+
+* Thu May 5 2016 Mike Belov <dedm@nginx.com> 0.33-2
+- 0.33-2
+- Bug fixes
+
 * Fri Apr 29 2016 Mike Belov <dedm@nginx.com> 0.33-1
 - 0.33-1
 - NGINX+ objects support

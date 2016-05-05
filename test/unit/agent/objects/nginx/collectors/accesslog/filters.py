@@ -128,3 +128,37 @@ class LogsFiltersTestCase(NginxCollectorTestCase):
 
         # filter values
         assert_that(counter['C|nginx.http.request.body_bytes_sent||2'][0][1], equal_to(2))
+
+    def test_server_name(self):
+        self.fake_object.filters = [
+            Filter(**dict(
+                filter_rule_id=2,
+                metric='nginx.http.status.2xx',
+                data=[
+                    {u'$server_name': u'differentsimgirls.com'}
+                ]
+            ))
+        ]
+
+        collector = NginxAccessLogsCollector(
+            object=self.fake_object,
+            log_format='$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent ' +
+                       '\"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\" ' +
+                       'rt=$request_time ua=\"$upstream_addr\" us=\"$upstream_status\" ' +
+                       'ut=\"$upstream_response_time\" ul=\"$upstream_response_length\" ' +
+                       'cs=$upstream_cache_status sn=$server_name',
+            tail=[
+                '104.236.93.23 - - [05/May/2016:12:52:50 +0200] "GET / HTTP/1.1" 200 28275 "-" ' +
+                '"curl/7.35.0" "-" rt=0.082 ua="-" us="-" ut="-" ul="-" cs=- sn=differentsimgirls.com'
+            ]
+        )
+        collector.collect()
+
+        # check
+        metrics = self.fake_object.statsd.flush()['metrics']
+        assert_that(metrics, has_item('counter'))
+        counter = metrics['counter']
+
+        # check our metric
+        assert_that(counter['C|nginx.http.status.2xx'][0][1], equal_to(1))
+        assert_that(counter['C|nginx.http.status.2xx||2'][0][1], equal_to(1))
