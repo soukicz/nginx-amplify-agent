@@ -3,6 +3,11 @@
 # Copyright (C) Nginx, Inc.
 #
 
+# TODO
+#
+# -- check if sudo exists
+#
+
 cat <<-EOM >&2
 	#
 	# HEADS UP:
@@ -108,7 +113,7 @@ if [ -n "${nginx_master}" ]; then
 		echo "  ---> version and configure options:"
 		${nginx_bin} -V 2>&1
 	    else
-		echo "  ---> can't find ${nginx_bin} !"
+		echo "  ---> can't find binary \"${nginx_bin}\" !"
 	    fi
 	    echo ""
 	fi
@@ -134,6 +139,12 @@ if [ -e /etc/nginx ]; then
     echo "===> contents of /etc/nginx:"
     ls -la /etc/nginx
     echo ""
+
+    if [ -e /etc/nginx/conf.d ]; then
+	echo "===> contents of /etc/nginx/conf.d:"
+	ls -la /etc/nginx/conf.d
+	echo ""
+    fi
 
     if grep -R "stub_status" /etc/nginx/* > /dev/null 2>&1; then
         echo "===> found stub_status somewhere inside /etc/nginx/*"
