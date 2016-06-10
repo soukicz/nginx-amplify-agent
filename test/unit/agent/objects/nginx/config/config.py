@@ -260,3 +260,19 @@ class ConfigTestCase(BaseTestCase):
             address = url.split('/')[0]
             valid_urls = valid_urls_dict[address]
             assert_that(valid_urls, has_item(url))
+
+
+class MiscConfigTestCase(BaseTestCase):
+
+    def test_permissions_and_mtime_affect_checksum(self):
+        """
+        Check that changing permissions or mtime affect checksum
+        """
+        config = NginxConfig(simple_config)
+        config.full_parse()
+        old_checksum = config.checksum()
+
+        os.system('touch %s' % (os.getcwd() + '/test/fixtures/nginx/simple/conf.d/'))
+        config.full_parse()
+        new_checksum = config.checksum()
+        assert_that(new_checksum, not_(equal_to(old_checksum)))

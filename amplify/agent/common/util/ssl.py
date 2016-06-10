@@ -24,6 +24,15 @@ ssl_regexs = (
     re.compile('.*/CN=(?P<common_name>[\w\s\'\-\.]+).*'),
 )
 
+ssl_subject_map = {
+    'C': 'country',
+    'ST': 'state',
+    'L': 'location',
+    'O': 'organization',
+    'OU': 'unit',
+    'CN': 'common_name'
+}
+
 
 ssl_text_regexs = (
     re.compile('.*Public Key Algorithm: (?P<public_key_algorithm>.*)'),
@@ -52,7 +61,12 @@ def certificate_dates(filename):
     return results or None
 
 
-def certificate_subject(filename):
+def certificate_subject_old(filename):
+    """
+    This older method for parsing SSL subject proved unreliable because of output structure differences between systems.
+    Instead we implemented a new, simpler method below that uses structured text interpretation and string splits
+    instead of stand-alone regular expressions.
+    """
     results = {}
 
     openssl_out, _ = subp.call("openssl x509 -in %s -noout -subject" % filename, check=False)
@@ -62,6 +76,33 @@ def certificate_subject(filename):
                 match_obj = regex.match(line)
                 if match_obj:
                     results.update(match_obj.groupdict())
+
+    return results or None
+
+
+def certificate_subject(filename):
+    results = {}
+
+    openssl_out, _ = subp.call("openssl x509 -in %s -noout -subject -nameopt RFC2253" % filename, check=False)
+    for line in openssl_out:
+        if line:
+            output = line[8:]  # trim "subject=" or "Subject:" from output
+            factors = output.split(',')  # split output into distinct groups
+            prev_factor = None
+            for factor in factors:
+                if '=' in factor:
+                    key, value = factor.split('=', 1)  # only split on the first equal sign
+                    key = key.lstrip().upper()  # remove leading spaces (if any) and capitalize (if lowercase)
+                    if key in ssl_subject_map:
+                        results[ssl_subject_map[key]] = value
+                    prev_factor = key
+                elif prev_factor in ssl_subject_map:
+                    # If there wasn't an '=' in the current factor, go back the previous factor and append the current
+                    # factor to the result in order to account for values where a ',' was part of the value.
+                    results[ssl_subject_map[prev_factor]] += (',' + factor)
+
+                    # Replace escaped \ (workaround)
+                    results[ssl_subject_map[prev_factor]] = results[ssl_subject_map[prev_factor]].replace('\\', '')
 
     return results or None
 

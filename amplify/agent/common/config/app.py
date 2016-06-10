@@ -33,7 +33,8 @@ class Config(AbstractConfig):
         credentials=dict(
             api_key=None,
             uuid=None,
-            hostname=None
+            hostname=None,
+            imagename=None
         ),
     )
 

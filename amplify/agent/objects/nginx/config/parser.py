@@ -2,6 +2,7 @@
 import glob
 import os
 import re
+from itertools import izip
 
 from pyparsing import (
     Regex, Keyword, Literal, White, Word, alphanums, CharsNotIn, Forward, Group,
@@ -103,7 +104,7 @@ class NginxConfigParser(object):
     if_value = Regex(r'\(.*\)').setParseAction(set_line_number)
     language_include_value = CharsNotIn("'").setParseAction(set_line_number)
     strict_value = CharsNotIn("{};").setParseAction(set_line_number)
-    sub_filter_value = (non_space_value | Regex(r"\'(.|\n)+?\'", )).setParseAction(set_line_number)
+    sub_filter_value = (non_space_value | Regex(r"\'(.|\n)+?\'",)).setParseAction(set_line_number)
 
     # map values
     map_value_one = Regex(r'\'([^\']|\s)*\'').setParseAction(set_line_number)
@@ -212,35 +213,42 @@ class NginxConfigParser(object):
         self.filename = filename
         self.folder = '/'.join(self.filename.split('/')[:-1])  # stores path to folder with main config
         self.files = {}  # to prevent cycle files and line indexing
+        self.directories = {}
         self.parsed_cache = {}  # to cache multiple includes
         self.broken_files = set()  # to prevent reloading broken files
+        self.broken_directories = set()  # to prevent reloading broken directories
         self.index = []  # stores index for all sections (points to file number and line number)
         self.ssl_certificates = []
         self.errors = []
         self.tree = {}
+        self.directory_map = {}
+
+        self.file_errors = []  # For broken files
+        self.directory_errors = []  # for broken directories
 
     def parse(self):
-        self.tree = self.__logic_parse(self.__pyparse(self.filename))
-
-        # drop cached
-        self.parsed_cache = None
+        self.directories, self.files, self.parsed_cache = {}, {}, {}  # drop results from the previous run
+        self.tree = self.__logic_parse(self.__pyparse(self.filename))  # parse
+        self.construct_directory_map()  # construct a tree of structure
+        self.parsed_cache = {}  # drop cached, as it is no longer needed
 
     @staticmethod
-    def get_file_info(filename):
+    def get_filesystem_info(path):
         """
-        Returns file size, mtime and permissions
-        :param filename: str filename
+        Returns file/folder size, mtime and permissions
+
+        :param path: str path to file/folder
         :return: int, int, str - size, mtime, permissions
         """
         size, mtime, permissions = 0, 0, '0000'
 
         try:
-            size = os.path.getsize(filename)
-            mtime = int(os.path.getmtime(filename))
-            permissions = oct(os.stat(filename).st_mode & 0777)
+            size = os.path.getsize(path)
+            mtime = int(os.path.getmtime(path))
+            permissions = oct(os.stat(path).st_mode & 0777)
         except Exception, e:
             exception_name = e.__class__.__name__
-            message = 'failed to stat %s due to: %s' % (filename, exception_name)
+            message = 'failed to stat %s due to: %s' % (path, exception_name)
             context.log.debug(message, exc_info=True)
 
         return size, mtime, permissions
@@ -256,55 +264,53 @@ class NginxConfigParser(object):
             result = '%s/%s' % (self.folder, result)
         return result
 
-    def collect_all_files(self, include_ssl_certs=False):
+    @staticmethod
+    def resolve_directory(path):
         """
-        Tries to collect all included files and ssl certs and return
-        them as dict with mtimes, sizes and permissions.
-        Later this dict will be used to determine if a config was changed or not.
+        Takes a path and parses out the containing directory path.
 
-        We don't use md5 or other hashes, because it takes time and we should be able
-        to run these checks every 20 seconds or so
-
-        :param include_ssl_certs: bool - include ssl certs  or not
-        :return: {} of files
+        :param path: String Filepath (E.G. '/etc/conf/test.txt')
+        :return: String Directory path (E.G. '/etc/conf/')
         """
-        result = {}
+        path_blocks = path.split('/')  # split address ['', 'etc', 'conf', 'test.txt']
+        path_blocks = path_blocks[:-1] + ['']  # trim filename and replace with empty string ['', 'etc', 'conf', '']
+        directory_path = '/'.join(path_blocks)  # '/etc/conf/'
+        return directory_path
 
-        # collect all files
-        def lightweight_include_search(include_files):
-            for filename in include_files:
-                if filename in result:
-                    continue
-                result[filename] = None
-                try:
-                    for line in open(filename):
-                        if 'include' in line:
-                            gre = self.INCLUDE_RE.match(line)
-                            if gre:
-                                new_includes = self.find_includes(gre.group('include_file'))
-                                lightweight_include_search(new_includes)
-                        elif include_ssl_certs and 'ssl_certificate' in line:
-                            gre = self.SSL_CERTIFICATE_RE.match(line)
-                            if gre:
-                                cert_filename = self.resolve_local_path(gre.group('cert_file'))
-                                result[cert_filename] = None
-                except Exception as e:
-                    exception_name = e.__class__.__name__
-                    message = 'failed to read %s due to: %s' % (filename, exception_name)
-                    context.log.debug(message, exc_info=True)
+    def populate_directories(self, path):
+        """
+        Populates self.directories with a directory for a path
 
-        lightweight_include_search(self.find_includes(self.filename))
+        :param path: path to a file
+        """
+        # store directory results
+        directory_path = self.resolve_directory(path)
+        if directory_path not in self.directories:
+            try:
+                size, mtime, permissions = self.get_filesystem_info(directory_path)
+                self.directories[directory_path] = {
+                    'size': size,
+                    'mtime': mtime,
+                    'permissions': permissions
+                }
 
-        # get mtimes, sizes and permissions
-        for filename in result.iterkeys():
-            size, mtime, permissions = self.get_file_info(filename)
-            result[filename] = '%s_%s_%s' % (size, mtime, permissions)
+                # try to list dir - maybe we can get an error on that
+                os.listdir(directory_path)
 
-        return result
+            except Exception as e:
+                exception_name = e.__class__.__name__
+                exception_message = e.strerror if hasattr(e, 'strerror') else e.message
+                message = 'failed to read %s due to: %s' % (directory_path, exception_name)
+                context.log.debug(message, exc_info=True)
+                self.errors.append(message)
+                self.broken_directories.add(directory_path)
+                self.directory_errors.append((exception_name, exception_message))
 
-    def find_includes(self, path):
+    def resolve_includes(self, path):
         """
         Takes include path and returns all included files
+        Also populates directories
+
         :param path: str path
         :return: [] of str file names
         """
@@ -319,7 +325,59 @@ class NginxConfigParser(object):
         else:
             result.append(path)
 
+        self.populate_directories(path)
         return result
+
+    def get_structure(self, include_ssl_certs=False):
+        """
+        Tries to collect all included files, folders and ssl certs and return
+        them as dict with mtimes, sizes and permissions.
+        Later this dict will be used to determine if a config was changed or not.
+
+        We don't use md5 or other hashes, because it takes time and we should be able
+        to run these checks every 20 seconds or so
+
+        :param include_ssl_certs: bool - include ssl certs  or not
+        :return: {}, {} - files, directories
+        """
+        files_result = {}
+
+        # collect all files
+        def lightweight_include_search(include_files):
+            for file_path in include_files:
+                if file_path in files_result:
+                    continue
+                files_result[file_path] = None
+                try:
+                    for line in open(file_path):
+                        if 'include' in line:
+                            gre = self.INCLUDE_RE.match(line)
+                            if gre:
+                                new_includes = self.resolve_includes(gre.group('include_file'))
+                                lightweight_include_search(new_includes)
+                        elif include_ssl_certs and 'ssl_certificate' in line:
+                            gre = self.SSL_CERTIFICATE_RE.match(line)
+                            if gre:
+                                cert_file_path = self.resolve_local_path(gre.group('cert_file'))
+                                files_result[cert_file_path] = None
+                                self.populate_directories(cert_file_path)
+                except Exception as e:
+                    exception_name = e.__class__.__name__
+                    message = 'failed to read %s due to: %s' % (file_path, exception_name)
+                    context.log.debug(message, exc_info=True)
+
+        lightweight_include_search(self.resolve_includes(self.filename))
+
+        # get mtimes, sizes and permissions
+        for file_path in files_result.iterkeys():
+            size, mtime, permissions = self.get_filesystem_info(file_path)
+            files_result[file_path] = {
+                'size': size,
+                'mtime': mtime,
+                'permissions': permissions
+            }
+
+        return files_result, self.directories
 
     def __pyparse(self, path):
         """
@@ -328,27 +386,31 @@ class NginxConfigParser(object):
         :param path: file path (can contain *)
         """
         result = {}
-        for filename in self.find_includes(path):
+
+        for file_path in self.resolve_includes(path):
             # skip files we couldn't read, etc
-            if filename in self.broken_files:
+            if file_path in self.broken_files:
                 continue
 
-            if filename not in self.files:
+            if file_path not in self.files:
                 # read file contents
                 try:
-                    size, mtime, permissions = self.get_file_info(filename)
+                    size, mtime, permissions = self.get_filesystem_info(file_path)
                     if size > self.max_size:
-                        self.errors.append('failed to read %s due to: too large, %s bytes' % (filename, size))
-                        self.broken_files.add(filename)
+                        self.errors.append('failed to read %s due to: too large, %s bytes' % (file_path, size))
+                        self.broken_files.add(file_path)
+                        self.file_errors.append(('NaasException', 'too large, %s bytes' % size))
                         continue
 
-                    source = open(filename).read()
+                    source = open(file_path).read()
                     lines_count = source.count('\n')
                 except Exception as e:
                     exception_name = e.__class__.__name__
-                    message = 'failed to read %s due to: %s' % (filename, exception_name)
+                    exception_message = e.strerror if hasattr(e, 'strerror') else e.message
+                    message = 'failed to read %s due to: %s' % (file_path, exception_name)
                     self.errors.append(message)
-                    self.broken_files.add(filename)
+                    self.broken_files.add(file_path)
+                    self.file_errors.append((exception_name, exception_message))
                     context.log.error(message)
                     context.log.debug('additional info:', exc_info=True)
                     continue
@@ -356,7 +418,7 @@ class NginxConfigParser(object):
                     # store the results
                     file_index = len(self.files)
 
-                    self.files[filename] = {
+                    self.files[file_path] = {
                         'index': file_index,
                         'lines': lines_count,
                         'size': size,
@@ -386,8 +448,8 @@ class NginxConfigParser(object):
                     parsed = list(self.script.parseString(source, parseAll=True))
                 except Exception as e:
                     exception_name = e.__class__.__name__
-                    message = 'failed to parse %s due to %s' % (filename, exception_name)
-                    self.broken_files.add(filename)
+                    message = 'failed to parse %s due to %s' % (file_path, exception_name)
+                    self.broken_files.add(file_path)
                     self.errors.append(message)
                     context.log.error(message)
                     context.log.debug('additional info:', exc_info=True)
@@ -397,7 +459,7 @@ class NginxConfigParser(object):
                 result[file_index] = parsed
             else:
                 # if we already have the file parsed
-                file_index = self.files[filename]['index']
+                file_index = self.files[file_path]['index']
                 result[file_index] = self.parsed_cache.get(file_index, [])
 
         return result
@@ -508,7 +570,9 @@ class NginxConfigParser(object):
                         if '$' in value and ' if=$' not in value:
                             continue  # skip directives that are use nginx variables and it's not if
 
-                        self.ssl_certificates.append(self.resolve_local_path(value))  # Add value to ssl_certificates
+                        cert_path = self.resolve_local_path(value)
+                        self.ssl_certificates.append(cert_path)  # Add value to ssl_certificates
+                        self.populate_directories(cert_path)
 
                         # save config value
                         indexed_value = self.__idx_save(value, file_index, row.line_number)
@@ -587,4 +651,35 @@ class NginxConfigParser(object):
             return map(lambda x: self.simplify(tree=x), tree)
 
         return result
+
+    def construct_directory_map(self):
+        # start with directories
+        for directory, info in self.directories.iteritems():
+            self.directory_map[directory] = {
+                'info': info,
+                'files': {}
+            }
+
+        for directory, error in izip(self.broken_directories, self.directory_errors):
+            if directory in self.directory_map:
+                self.directory_map[directory]['error'] = '%s: %s' % error
+            else:
+                self.directory_map[directory] = {
+                    'info': {},
+                    'files': {},
+                    'error': '%s: %s' % error,
+                }
+
+        # now files
+        for filename, info in self.files.iteritems():
+            directory = self.resolve_directory(filename)
+            self.directory_map[directory]['files'][filename] = {'info': info}
+
+        for filename, error in izip(self.broken_files, self.file_errors):
+            directory = self.resolve_directory(filename)
+
+            if filename in self.directory_map[directory]['files']:
+                self.directory_map[directory]['files'][filename]['error'] = '%s: %s' % error
+            else:
+                self.directory_map[directory]['files'][filename] = {'info': {}, 'error': '%s: %s' % error}
 

@@ -7,7 +7,7 @@ from hamcrest import *
 
 from amplify.agent.common.context import context
 from amplify.agent.supervisor import Supervisor
-from test.base import RealNginxTestCase
+from test.base import RealNginxTestCase, nginx_plus_test, nginx_oss_test
 from test.fixtures.defaults import DEFAULT_API_URL, DEFAULT_API_KEY
 
 __author__ = "Mike Belov"
@@ -119,21 +119,30 @@ class SupervisorTestCase(RealNginxTestCase):
                 equal_to(nginx_object_init_time)
             )
 
-    def test_filters_applying(self):
+    @nginx_plus_test
+    def test_filters_applying_plus(self):
+        self.mock_request_data = '{"config": {"cloud": {"push_interval": 60.0, "talk_interval": 60.0, "api_timeout": 10.0}, "containers": {"nginx": {"max_test_duration": 30.0, "run_test": false, "poll_intervals": {"metrics": 20.0, "configs": 20.0, "meta": 30.0, "discover": 10.0, "logs": 10.0}, "upload_ssl": true, "upload_config": true}, "system": {"poll_intervals": {"metrics": 20.0, "meta": 30.0, "discover": 10.0}}}}, "objects": [{"object":{"type":"nginx", "root_uuid": "6789abcde", "local_id": "b636d4376dea15405589692d3c5d3869ff3a9b26b0e7bb4bb1aa7e658ace1437"}, "config":{"upload_ssl":true}, "filters":[ {"metric": "nginx.http.method.post", "filter_rule_id": 9, "data": [{"$request_uri": "/api/timeseries"}]} ] }], "messages": [], "versions": {"current": 0.29, "old": 0.26, "obsolete": 0.21}}'
+        self.run_filters_applying_test()
+
+    @nginx_oss_test
+    def test_filters_applying_oss(self):
+        self.mock_request_data = '{"config": {"cloud": {"push_interval": 60.0, "talk_interval": 60.0, "api_timeout": 10.0}, "containers": {"nginx": {"max_test_duration": 30.0, "run_test": false, "poll_intervals": {"metrics": 20.0, "configs": 20.0, "meta": 30.0, "discover": 10.0, "logs": 10.0}, "upload_ssl": true, "upload_config": true}, "system": {"poll_intervals": {"metrics": 20.0, "meta": 30.0, "discover": 10.0}}}}, "objects": [{"object":{"type":"nginx", "root_uuid": "6789abcde", "local_id": "151d8728e792f42e129337573a21bb30ab3065d59102f075efc2ded28e713ff8"}, "config":{"upload_ssl":true}, "filters":[ {"metric": "nginx.http.method.post", "filter_rule_id": 9, "data": [{"$request_uri": "/api/timeseries"}]} ] }], "messages": [], "versions": {"current": 0.29, "old": 0.26, "obsolete": 0.21}}'
+        self.run_filters_applying_test()
+
+    def run_filters_applying_test(self):
         supervisor = Supervisor()
 
         with requests_mock.mock() as m:
             m.post(
                 '%s/%s/agent/' % (DEFAULT_API_URL, DEFAULT_API_KEY),
-                text='{"config": {"cloud": {"push_interval": 60.0, "talk_interval": 60.0, "api_timeout": 10.0}, "containers": {"nginx": {"max_test_duration": 30.0, "run_test": false, "poll_intervals": {"metrics": 20.0, "configs": 20.0, "meta": 30.0, "discover": 10.0, "logs": 10.0}, "upload_ssl": true, "upload_config": true}, "system": {"poll_intervals": {"metrics": 20.0, "meta": 30.0, "discover": 10.0}}}}, "objects": [{"object":{"type":"nginx", "root_uuid": "6789abcde", "local_id": "b636d4376dea15405589692d3c5d3869ff3a9b26b0e7bb4bb1aa7e658ace1437"}, "config":{"upload_ssl":true}, "filters":[ {"metric": "nginx.http.method.post", "filter_rule_id": 9, "data": [{"$request_uri": "/api/timeseries"}]} ] }], "messages": [], "versions": {"current": 0.29, "old": 0.26, "obsolete": 0.21}}'
+                text=self.mock_request_data
             )
 
             supervisor.init_object_managers()
             for manager_name in supervisor.object_manager_order:
                 supervisor.object_managers[manager_name]._discover_objects()
             nginx_manager = supervisor.object_managers['nginx']
-            nginx_obj = nginx_manager.objects.objects[
-                nginx_manager.objects.objects_by_type[nginx_manager.type][0]]
+            nginx_obj = nginx_manager.objects.find_all(types=nginx_manager.types)[0]
             assert_that(nginx_obj.filters, has_length(0))
 
             # talk 1st time
@@ -142,7 +151,6 @@ class SupervisorTestCase(RealNginxTestCase):
                 supervisor.object_managers[manager_name]._discover_objects()
 
             nginx_manager = supervisor.object_managers['nginx']
-            nginx_obj = nginx_manager.objects.objects[
-                nginx_manager.objects.objects_by_type[nginx_manager.type][0]]
+            nginx_obj = nginx_manager.objects.find_all(types=nginx_manager.types)[0]
 
             assert_that(nginx_obj.filters, has_length(1))

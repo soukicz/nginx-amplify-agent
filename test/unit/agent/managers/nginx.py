@@ -4,6 +4,7 @@ import re
 from hamcrest import *
 
 from amplify.agent.common.util import subp
+from amplify.agent.common.context import context
 from amplify.agent.managers.nginx import NginxManager
 from test.base import RealNginxTestCase
 
@@ -57,8 +58,8 @@ class NginxManagerTestCase(RealNginxTestCase):
 
         container = NginxManager()
         container._discover_objects()
-        assert_that(container.objects.objects_by_type[container.type], has_length(1))
-        obj = container.objects.find_all(obj_id=container.objects.objects_by_type[container.type][0])[0]
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
         assert_that(obj.pid, equal_to(old_master))
         assert_that(obj.workers, equal_to(old_workers))
 
@@ -66,8 +67,8 @@ class NginxManagerTestCase(RealNginxTestCase):
         new_master, new_workers = self.get_master_workers()
 
         container._discover_objects()
-        assert_that(container.objects.objects_by_type[container.type], has_length(1))
-        obj = container.objects.objects[container.objects.objects_by_type[container.type][0]]
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
         assert_that(obj.pid, not_(equal_to(old_master)))
         assert_that(obj.pid, equal_to(new_master))
         assert_that(obj.workers, not_(equal_to(old_workers)))
@@ -78,8 +79,8 @@ class NginxManagerTestCase(RealNginxTestCase):
 
         container = NginxManager()
         container._discover_objects()
-        assert_that(container.objects.objects_by_type[container.type], has_length(1))
-        obj = container.objects.objects[container.objects.objects_by_type[container.type][0]]
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
         # The following assertion is unreliable for some reason.
         assert_that(obj.pid, equal_to(old_master))
         assert_that(obj.workers, equal_to(old_workers))
@@ -89,7 +90,7 @@ class NginxManagerTestCase(RealNginxTestCase):
         assert_that(new_master, equal_to(old_master))
 
         container._discover_objects()
-        obj = container.objects.find_all(obj_id=container.objects.objects_by_type[container.type][0])[0]
+        obj = container.objects.find_all(types=container.types)[0]
         assert_that(obj.pid, equal_to(old_master))
         assert_that(obj.workers, not_(equal_to(old_workers)))
         assert_that(obj.workers, equal_to(new_workers))
@@ -97,12 +98,83 @@ class NginxManagerTestCase(RealNginxTestCase):
     def test_two_instances(self):
         container = NginxManager()
         container._discover_objects()
-        obj = container.objects.objects[container.objects.objects_by_type[container.type][0]]
+        obj = container.objects.find_all(types=container.types)[0]
 
         self.start_second_nginx()
 
         container._discover_objects()
-        assert_that(container.objects.objects_by_type[container.type], has_length(2))
+        assert_that(container.objects.find_all(types=container.types), has_length(2))
+
+        local_ids = map(lambda x: x.local_id, container.objects.find_all(types=container.types))
+        assert_that(local_ids, has_item(obj.local_id))
+
+
+class DockerNginxManagerTestCase(NginxManagerTestCase):
+    def setup_method(self, method):
+        super(DockerNginxManagerTestCase, self).setup_method(method)
+        context.app_config['credentials']['imagename'] = 'DockerTest'
+
+    def teardown_method(self, method):
+        context.app_config['credentials']['imagename'] = None
+        super(DockerNginxManagerTestCase, self).teardown_method(method)
+
+    def test_restart(self):
+        old_master, old_workers = self.get_master_workers()
+
+        container = NginxManager()
+        container._discover_objects()
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
+        assert_that(obj.pid, equal_to(old_master))
+        assert_that(obj.workers, equal_to(old_workers))
+        assert_that(obj.type, equal_to('container_nginx'))
+
+        self.restart_nginx()
+        new_master, new_workers = self.get_master_workers()
+
+        container._discover_objects()
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
+        assert_that(obj.pid, not_(equal_to(old_master)))
+        assert_that(obj.pid, equal_to(new_master))
+        assert_that(obj.workers, not_(equal_to(old_workers)))
+        assert_that(obj.workers, equal_to(new_workers))
+        assert_that(obj.type, equal_to('container_nginx'))
+
+    def test_reload(self):
+        old_master, old_workers = self.get_master_workers()
+
+        container = NginxManager()
+        container._discover_objects()
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
+        # The following assertion is unreliable for some reason.
+        assert_that(obj.pid, equal_to(old_master))
+        assert_that(obj.workers, equal_to(old_workers))
+        assert_that(obj.type, equal_to('container_nginx'))
+
+        self.reload_nginx()
+        new_master, new_workers = self.get_master_workers()
+        assert_that(new_master, equal_to(old_master))
+
+        container._discover_objects()
+        obj = container.objects.find_all(types=container.types)[0]
+        assert_that(obj.pid, equal_to(old_master))
+        assert_that(obj.workers, not_(equal_to(old_workers)))
+        assert_that(obj.workers, equal_to(new_workers))
+        assert_that(obj.type, equal_to('container_nginx'))
+
+    def test_two_instances(self):
+        container = NginxManager()
+        container._discover_objects()
+        assert_that(container.objects.find_all(types=container.types), has_length(1))
+        obj = container.objects.find_all(types=container.types)[0]
+        assert_that(obj.type, equal_to('container_nginx'))
+
+        self.start_second_nginx()
+
+        container._discover_objects()
+        assert_that(container.objects.find_all(types=container.types), has_length(2))
 
         local_ids = map(lambda x: x.local_id, container.objects.find_all(types=container.types))
         assert_that(local_ids, has_item(obj.local_id))

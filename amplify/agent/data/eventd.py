@@ -80,7 +80,7 @@ class EventdClient(CommonDataClient):
         :return: dict of payload
         """
         if not self.current:
-            return
+            return {'object': self.object.definition}
 
         delivery = copy.deepcopy(self.current)
         self.current = {}

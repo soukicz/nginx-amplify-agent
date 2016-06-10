@@ -53,6 +53,8 @@ class NginxConfig(object):
         self.test_errors = []
         self.tree = {}
         self.files = {}
+        self.directories = {}
+        self.directory_map = {}
         self.index = []
         self.ssl_certificates = {}
         self.parser_errors = []
@@ -69,24 +71,28 @@ class NginxConfig(object):
 
         self.tree = self.parser.tree
         self.files = self.parser.files
+        self.directories = self.parser.directories
+        self.directory_map = self.parser.directory_map
         self.index = self.parser.index
         self.parser_errors = self.parser.errors
 
         # go through and collect all logical data
-        self.__recursive_search(subtree=self.parser.simplify())
+        self.__collect_data(subtree=self.parser.simplify())
 
         # try to locate and use default logs (PREFIX/logs/*)
         self.add_default_logs()
 
-    def get_all_files(self, include_ssl_certs=False):
+    def collect_structure(self, include_ssl_certs=False):
         """
         Goes through all files (light-parsed includes) and collects their mtime
+
         :param include_ssl_certs: bool - include ssl certs  or not
         :return: {} - dict of files
         """
-        files = self.parser.collect_all_files(include_ssl_certs=include_ssl_certs)
+        files, directories = self.parser.get_structure(include_ssl_certs=include_ssl_certs)
         context.log.debug('found %s files for %s' % (len(files.keys()), self.filename))
-        return files
+        context.log.debug('found %s directories for %s' % (len(directories.keys()), self.filename))
+        return files, directories
 
     def total_size(self):
         """
@@ -98,7 +104,7 @@ class NginxConfig(object):
             result += file_info['size']
         return result
 
-    def __recursive_search(self, subtree=None, ctx=None):
+    def __collect_data(self, subtree=None, ctx=None):
         """
         Searches needed data in config's tree
 
@@ -161,29 +167,33 @@ class NginxConfig(object):
                     ctx['ip_port'] = []
                     for item in listen:
                         listen_first_part = item.split(' ')[0]
-                        addr, port = self.__parse_listen(listen_first_part)
-                        if addr in ('*', '0.0.0.0'):
-                            addr = '127.0.0.1'
-                        elif addr == '[::]':
-                            addr = '[::1]'
-                        ctx['ip_port'].append((addr, port))
+                        try:
+                            addr, port = self.__parse_listen(listen_first_part)
+                            if addr in ('*', '0.0.0.0'):
+                                addr = '127.0.0.1'
+                            elif addr == '[::]':
+                                addr = '[::1]'
+                            ctx['ip_port'].append((addr, port))
+                        except Exception as e:
+                            context.log.error('failed to parse bad ipv6 listen directive: %s' % listen_first_part)
+                            context.log.debug('additional info:', exc_info=True)
 
                     if 'server_name' in server:
                         ctx['server_name'] = server.get('server_name')
 
-                    self.__recursive_search(subtree=server, ctx=ctx)
+                    self.__collect_data(subtree=server, ctx=ctx)
                     ctx = current_ctx
             elif key == 'upstream':
                 for upstream, upstream_info in value.iteritems():
                     current_ctx = copy.copy(ctx)
                     ctx['upstream'] = upstream
-                    self.__recursive_search(subtree=upstream_info, ctx=ctx)
+                    self.__collect_data(subtree=upstream_info, ctx=ctx)
                     ctx = current_ctx
             elif key == 'location':
                 for location, location_info in value.iteritems():
                     current_ctx = copy.copy(ctx)
                     ctx['location'] = location
-                    self.__recursive_search(subtree=location_info, ctx=ctx)
+                    self.__collect_data(subtree=location_info, ctx=ctx)
                     ctx = current_ctx
             elif key == 'stub_status' and ctx and 'ip_port' in ctx:
                 for url in self.__status_url(ctx):
@@ -201,11 +211,11 @@ class NginxConfig(object):
                     if url not in self.plus_status_internal_urls:
                         self.plus_status_internal_urls.append(url)
             elif isinstance(value, dict):
-                self.__recursive_search(subtree=value, ctx=ctx)
+                self.__collect_data(subtree=value, ctx=ctx)
             elif isinstance(value, list):
                 for next_subtree in value:
                     if isinstance(next_subtree, dict):
-                        self.__recursive_search(subtree=next_subtree, ctx=ctx)
+                        self.__collect_data(subtree=next_subtree, ctx=ctx)
 
     @staticmethod
     def __status_url(ctx, server_preferred=False):
@@ -282,8 +292,13 @@ class NginxConfig(object):
         :return: str checksum
         """
         checksums = []
-        for filename in self.files.iterkeys():
-            checksums.append(hashlib.sha256(open(filename).read()).hexdigest())
+        for file_path, file_data in self.files.iteritems():
+            checksums.append(hashlib.sha256(open(file_path).read()).hexdigest())
+            checksums.append(file_data['permissions'])
+            checksums.append(str(file_data['mtime']))
+        for dir_data in self.directories.itervalues():
+            checksums.append(dir_data['permissions'])
+            checksums.append(str(dir_data['mtime']))
         for cert in self.ssl_certificates.iterkeys():
             checksums.append(hashlib.sha256(open(cert).read()).hexdigest())
         return hashlib.sha256('.'.join(checksums)).hexdigest()

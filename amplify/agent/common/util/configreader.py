@@ -5,7 +5,9 @@ import traceback
 import requests
 
 from amplify.agent.common.context import context
+from amplify.agent.common.errors import AmplifyCriticalException
 from amplify.agent.common.util.loader import import_class
+from amplify.agent.common.util.host import hostname as find_hostname
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -69,12 +71,26 @@ def test(config_file, pid_file):
             print("Write your API key in [credentials][api_key]")
             return 1
 
+        # check hostname
+        try:
+            hostname = find_hostname()
+        except AmplifyCriticalException:
+            hostname = None
+
+        if not hostname:
+            print("\033[31mCould not find a valid hostname\033[0m\n")
+            print("Check the log for more information")
+            print("You should consider the following:")
+            print("  1. Consult the log for information why a discovered hostname is not valid")
+            print("  2. Define a valid hostname for agent to use in the config under [credentials][hostname]")
+            return 1
+
         # test logger
         try:
             context.log.info('configtest check')
         except:
             print("\033[31mCould not write to log\033[0m\n")
-            print("Maybe the log folder doestn't exist or rights are broken")
+            print("Maybe the log folder doesn't exist or rights are broken")
             print("You should do the following actions:")
             print("  1. sudo mkdir /var/log/amplify-agent")
             print("  2. sudo touch /var/log/amplify-agent/agent.log")

@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-from amplify.agent.data.eventd import INFO
+from amplify.agent.collectors.nginx.accesslog import NginxAccessLogsCollector
+from amplify.agent.collectors.nginx.config import NginxConfigCollector
+from amplify.agent.collectors.nginx.errorlog import NginxErrorLogsCollector
+from amplify.agent.collectors.nginx.metrics import NginxMetricsCollector
+
+from amplify.agent.collectors.nginx.meta.centos import NginxCentosMetaCollector
+from amplify.agent.collectors.nginx.meta.deb import NginxDebianMetaCollector
+from amplify.agent.collectors.nginx.meta.common import NginxMetaCollector
 from amplify.agent.common.context import context
 from amplify.agent.common.util import host, http
+from amplify.agent.data.eventd import INFO
 from amplify.agent.objects.abstract import AbstractObject
-from amplify.agent.objects.nginx.filters import Filter
 from amplify.agent.objects.nginx.config.config import NginxConfig
-from amplify.agent.objects.nginx.collectors.accesslog import NginxAccessLogsCollector
-from amplify.agent.objects.nginx.collectors.config import NginxConfigCollector
-from amplify.agent.objects.nginx.collectors.errorlog import NginxErrorLogsCollector
-from amplify.agent.objects.nginx.collectors.meta.centos import NginxCentosMetaCollector
-from amplify.agent.objects.nginx.collectors.meta.common import NginxCommonMetaCollector
-from amplify.agent.objects.nginx.collectors.meta.deb import NginxDebianMetaCollector
-from amplify.agent.objects.nginx.collectors.metrics import NginxMetricsCollector
-
+from amplify.agent.objects.nginx.filters import Filter
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -22,13 +22,17 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
-class NginxObject(AbstractObject):
-    type = 'nginx'
+class CommonNginxObject(AbstractObject):
+    type = 'common_nginx'
 
     def __init__(self, **kwargs):
-        super(NginxObject, self).__init__(**kwargs)
+        super(CommonNginxObject, self).__init__(**kwargs)
 
-        self.root_uuid = self.data.get('root_uuid') or context.objects.root_object.uuid if context.objects.root_object else None
+        # Have to override intervals here because new container sub objects.
+        self.intervals = context.app_config['containers'].get('nginx', {}).get('poll_intervals', {'default': 10})
+
+        self.root_uuid = self.data.get(
+            'root_uuid') or context.objects.root_object.uuid if context.objects.root_object else None
         self.local_id_cache = self.data['local_id']  # Assigned by manager
         self.pid = self.data['pid']
         self.version = self.data['version']
@@ -37,11 +41,16 @@ class NginxObject(AbstractObject):
         self.bin_path = self.data['bin_path']
         self.conf_path = self.data['conf_path']
 
-        default_config = context.app_config['containers'][self.type]
+        default_config = context.app_config['containers']['nginx']
 
         self.upload_config = self.data.get('upload_config') or default_config.get('upload_config', False)
         self.run_config_test = self.data.get('run_test') or default_config.get('run_test', False)
         self.upload_ssl = self.data.get('upload_ssl') or default_config.get('upload_ssl', False)
+        self.filters = []
+
+        # filters
+        for raw_filter in self.data.get('filters') or []:
+            self.filters.append(Filter(**raw_filter))
 
         self.config = NginxConfig(self.conf_path, prefix=self.prefix)
         self.config.full_parse()
@@ -53,80 +62,11 @@ class NginxObject(AbstractObject):
         self.stub_status_enabled = True if self.stub_status_url else False
 
         self.processes = []
-        self.filters = []
-
-        # filters
-        for raw_filter in self.data.get('filters') or []:
-            self.filters.append(Filter(**raw_filter))
-
-        # meta
-        meta_collector_class = NginxCommonMetaCollector
-        if host.os_name() == 'linux':
-            if host.linux_name() in ('ubuntu', 'debian'):
-                meta_collector_class = NginxDebianMetaCollector
-            elif host.linux_name() in ('centos',):
-                meta_collector_class = NginxCentosMetaCollector
-
-        self.collectors = [
-            meta_collector_class(
-                object=self, interval=self.intervals['meta']
-            ),
-            NginxMetricsCollector(
-                object=self, interval=self.intervals['metrics']
-            ),
-            NginxConfigCollector(
-                object=self, interval=self.intervals['configs'],
-            )
-        ]
-
-        # access logs
-        for log_filename, format_name in self.config.access_logs.iteritems():
-            log_format = self.config.log_formats.get(format_name)
-            try:
-                self.collectors.append(
-                    NginxAccessLogsCollector(
-                        object=self,
-                        interval=self.intervals['logs'],
-                        filename=log_filename,
-                        log_format=log_format,
-                    )
-                )
-
-                # Send access log discovery event.
-                self.eventd.event(level=INFO, message='nginx access log %s found' % log_filename)
-            except IOError as e:
-                exception_name = e.__class__.__name__
-                context.log.error(
-                    'failed to start reading log %s due to %s (maybe has no rights?)' %
-                    (log_filename, exception_name)
-                )
-                context.log.debug('additional info:', exc_info=True)
-
-        # error logs
-        for log_filename, log_level in self.config.error_logs.iteritems():
-            try:
-                self.collectors.append(
-                    NginxErrorLogsCollector(
-                        object=self,
-                        interval=self.intervals['logs'],
-                        filename=log_filename,
-                        level=log_level
-                    )
-                )
-
-                # Send error log discovery event.
-                self.eventd.event(level=INFO, message='nginx error log %s found' % log_filename)
-            except IOError as e:
-                exception_name = e.__class__.__name__
-                context.log.error(
-                    'failed to start reading log %s due to %s (maybe has no rights?)' %
-                    (log_filename, exception_name)
-                )
-                context.log.debug('additional info:', exc_info=True)
 
     @property
     def definition(self):
-        return {'type': self.type, 'local_id': self.local_id, 'root_uuid': self.root_uuid}
+        # Type is hard coded so it is not different from DockerNginx.
+        return {'type': 'nginx', 'local_id': self.local_id, 'root_uuid': self.root_uuid}
 
     def get_alive_stub_status_url(self):
         """
@@ -216,3 +156,85 @@ class NginxObject(AbstractObject):
                 except:
                     context.log.debug('bad response from stub/plus status url %s' % full_url)
         return None
+
+    def _setup_config_collector(self):
+        self.collectors.append(
+            NginxConfigCollector(
+                object=self, interval=self.intervals['configs'],
+            )
+        )
+
+    def _setup_access_logs(self):
+        # access logs
+        for log_filename, format_name in self.config.access_logs.iteritems():
+            log_format = self.config.log_formats.get(format_name)
+            try:
+                self.collectors.append(
+                    NginxAccessLogsCollector(
+                        object=self,
+                        interval=self.intervals['logs'],
+                        filename=log_filename,
+                        log_format=log_format,
+                    )
+                )
+
+                # Send access log discovery event.
+                self.eventd.event(level=INFO, message='nginx access log %s found' % log_filename)
+            except IOError as e:
+                exception_name = e.__class__.__name__
+                context.log.error(
+                    'failed to start reading log %s due to %s (maybe has no rights?)' %
+                    (log_filename, exception_name)
+                )
+                context.log.debug('additional info:', exc_info=True)
+
+    def _setup_error_logs(self):
+        # error logs
+        for log_filename, log_level in self.config.error_logs.iteritems():
+            try:
+                self.collectors.append(
+                    NginxErrorLogsCollector(
+                        object=self,
+                        interval=self.intervals['logs'],
+                        filename=log_filename,
+                        level=log_level
+                    )
+                )
+
+                # Send error log discovery event.
+                self.eventd.event(level=INFO, message='nginx error log %s found' % log_filename)
+            except IOError as e:
+                exception_name = e.__class__.__name__
+                context.log.error(
+                    'failed to start reading log %s due to %s (maybe has no rights?)' %
+                    (log_filename, exception_name)
+                )
+                context.log.debug('additional info:', exc_info=True)
+
+
+class NginxObject(CommonNginxObject):
+    type = 'nginx'
+
+    def __init__(self, **kwargs):
+        super(NginxObject, self).__init__(**kwargs)
+
+        meta_collector_class = NginxMetaCollector
+        if host.os_name() == 'linux':
+            if host.linux_name() in ('ubuntu', 'debian'):
+                meta_collector_class = NginxDebianMetaCollector
+            elif host.linux_name() in ('centos',):
+                meta_collector_class = NginxCentosMetaCollector
+
+        # Collector setup...
+        self.collectors = [
+            meta_collector_class(
+                object=self, interval=self.intervals['meta']
+            ),
+            NginxMetricsCollector(
+                object=self, interval=self.intervals['metrics']
+            )
+        ]
+
+        self._setup_config_collector()
+        self._setup_access_logs()
+        self._setup_error_logs()

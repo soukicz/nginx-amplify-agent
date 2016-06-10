@@ -44,7 +44,7 @@ EOM
 agent_conf_path="/etc/amplify-agent"
 agent_conf_file="${agent_conf_path}/agent.conf"
 agent_log_file="/var/log/amplify-agent/agent.log"
-api_url="https://receiver.amplify.nginx.com:443/1.1/"
+api_url="https://receiver.amplify.nginx.com:443/ping/"
 
 found_nginx_master=""
 found_nginx_user=""

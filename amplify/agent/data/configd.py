@@ -28,7 +28,8 @@ class ConfigdClient(CommonDataClient):
 
     def flush(self):
         if not self.current:
-            return
+            return {'object': self.object.definition}
+            # Always return object definitions in case there are children and the definition is required to attached
 
         delivery = copy.deepcopy(self.current)
         self.current = {}

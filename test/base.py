@@ -154,5 +154,6 @@ def nginx_plus_installed():
     return True if 'nginx-plus' in first_line else False
 
 nginx_plus_test = pytest.mark.skipif(not nginx_plus_installed(), reason='This is a test for nginx+')
+nginx_oss_test = pytest.mark.skipif(nginx_plus_installed(), reason='This is a test for OSS nginx')
 future_test = pytest.mark.skipif(1 > 0, reason='This test will be written in future')
 

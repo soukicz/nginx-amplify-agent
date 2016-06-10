@@ -9,6 +9,7 @@ from amplify.agent.common.util import subp
 from amplify.agent.common.context import context
 from amplify.agent.managers.abstract import ObjectManager
 from amplify.agent.objects.nginx.object import NginxObject
+from amplify.agent.objects.nginx.container import ContainerNginxObject
 from amplify.agent.objects.nginx.binary import get_prefix_and_conf_path
 
 __author__ = "Mike Belov"
@@ -25,7 +26,20 @@ class NginxManager(ObjectManager):
     """
     name = 'nginx_manager'
     type = 'nginx'
-    types = ('nginx',)
+    types = ('nginx', 'container_nginx')
+
+    @staticmethod
+    def _init_nginx_object(data=None):
+        """
+        Method for initializing a new NGINX object.  Checks to see if we need a Docker object or a regular one.
+
+        :param data: Dict Data dict for object init
+        :return: NginxObject/DockerNginxObject
+        """
+        if context.app_config['credentials']['imagename']:
+            return ContainerNginxObject(data=data)
+        else:
+            return NginxObject(data=data)
 
     def _discover_objects(self):
         # save the current_ids
@@ -45,7 +59,7 @@ class NginxManager(ObjectManager):
                 if definition_hash not in existing_hashes:
                     # New object -- create it
                     data.update(self.object_configs.get(definition_hash, {}))  # push cloud config
-                    new_obj = NginxObject(data=data)
+                    new_obj = self._init_nginx_object(data=data)
 
                     # Send discover event.
                     new_obj.eventd.event(
@@ -64,7 +78,7 @@ class NginxManager(ObjectManager):
                         # restart object if needed
                         context.log.debug('config was changed (pid %s)' % current_obj.pid)
                         data.update(self.object_configs.get(definition_hash, {}))  # push cloud config
-                        new_obj = NginxObject(data=data)
+                        new_obj = self._init_nginx_object(data=data)
 
                         # Send nginx config changed event.
                         new_obj.eventd.event(
@@ -93,7 +107,7 @@ class NginxManager(ObjectManager):
                             )
                         )
                         data.update(self.object_configs.get(definition_hash, {}))
-                        new_obj = NginxObject(data=data)
+                        new_obj = self._init_nginx_object(data=data)
 
                         # Send nginx master process restart/reload event.
                         new_obj.eventd.event(
@@ -222,7 +236,7 @@ class NginxManager(ObjectManager):
                                 workers=[]
                             )
                 # match worker
-                elif 'nginx: worker process' or 'nginx: cache manager process' in cmd:
+                elif 'nginx: worker process' in cmd:
                     if ppid in masters:
                         masters[ppid]['workers'].append(pid)
                     else:

@@ -185,8 +185,6 @@ def alive_interfaces():
             if interface.isup:
                 alive_interfaces.add(interface_name)
     except:
-        context.log.debug('failed to use psutil.net_if_stats', exc_info=True)
-
         # fallback for centos6
         for interface_name in netifaces.interfaces():
             ip_link_out, _ = subp.call("ip link show dev %s" % interface_name, check=False)

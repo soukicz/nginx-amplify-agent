@@ -119,7 +119,7 @@ class ObjectsTank(Singleton):
         self.objects_by_type[obj.type].append(obj.id)
 
         # If detected root object type, set to root.
-        if obj.type == 'system':
+        if obj.type in ('system', 'container'):
             self.root_id = obj.id
 
         # Init relation list

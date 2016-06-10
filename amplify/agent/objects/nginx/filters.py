@@ -54,7 +54,7 @@ class Filter(object):
         for filter_key, filter_value in self.data.iteritems():
             key_matched = False
             if filter_key in parsed:
-                value = parsed[filter_key]
+                value = str(parsed[filter_key])
                 if isinstance(filter_value, str) and filter_value == value:
                     key_matched = True
                 elif isinstance(filter_value, RE_TYPE) and re.match(filter_value, value):

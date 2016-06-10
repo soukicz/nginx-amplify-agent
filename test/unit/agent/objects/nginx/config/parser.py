@@ -28,6 +28,7 @@ tab_config = os.getcwd() + '/test/fixtures/nginx/custom/tabs.conf'
 json_config = os.getcwd() + '/test/fixtures/nginx/custom/json.conf'
 ssl_simple_config = os.getcwd() + '/test/fixtures/nginx/ssl/simple/nginx.conf'
 sub_filter_config = os.getcwd() + '/test/fixtures/nginx/custom/sub_filter.conf'
+proxy_pass_config = os.getcwd() + '/test/fixtures/nginx/custom/proxy_pass.conf'
 
 
 class ParserTestCase(BaseTestCase):
@@ -107,7 +108,37 @@ class ParserTestCase(BaseTestCase):
 
         # check index tree
         books_location_index = indexed_tree['http'][0]['server'][2][0]['location']['/books/'][1]
-        assert_that(cfg.index[books_location_index], equal_to((0, 134)))  # root file, line number 134
+        assert_that(cfg.index[books_location_index], equal_to((0, 135)))  # root file, line number 135
+
+        # check directory map
+        assert_that(cfg.directory_map, equal_to({
+            '/amplify/test/fixtures/nginx/huge/': {
+                'info': {'permissions': '0755', 'mtime': 1463763109, 'size': 136},
+                'files': {
+                    '/amplify/test/fixtures/nginx/huge/mime.types': {
+                        'info': {'index': 1, 'permissions': '0644', 'mtime': 1463763109, 'lines': 77, 'size': 3870}
+                    },
+                     '/amplify/test/fixtures/nginx/huge/gce-public-networks.conf': {
+                         'error': 'IOError: No such file or directory'
+                     },
+                     '/amplify/test/fixtures/nginx/huge/ec2-public-networks.conf': {
+                         'error': 'IOError: No such file or directory'
+                     },
+                     '/amplify/test/fixtures/nginx/huge/azure-public-networks.conf': {
+                         'error': 'IOError: No such file or directory'
+                     },
+                     '/amplify/test/fixtures/nginx/huge/mime.types2': {
+                         'error': 'IOError: No such file or directory'
+                     },
+                     '/amplify/test/fixtures/nginx/huge/nginx.conf': {
+                         'info': {'index': 0, 'permissions': '0644', 'mtime': 1463763109, 'lines': 364, 'size': 8892}
+                     },
+                     '/amplify/test/fixtures/nginx/huge/dir.map': {
+                         'error': 'IOError: No such file or directory'
+                     }
+                }
+            }
+        }))
 
     def test_parse_complex(self):
         cfg = NginxConfigParser(complex_config)
@@ -221,22 +252,30 @@ class ParserTestCase(BaseTestCase):
     def test_lightweight_parse_includes(self):
         # simple
         cfg = NginxConfigParser(simple_config)
-        files = cfg.collect_all_files()
+        files, directories = cfg.get_structure()
         assert_that(files.keys(), equal_to([
             '/amplify/test/fixtures/nginx/simple/conf.d/something.conf',
             '/amplify/test/fixtures/nginx/simple/mime.types',
             '/amplify/test/fixtures/nginx/simple/nginx.conf'
         ]))
+        assert_that(directories.keys(), equal_to([
+            '/amplify/test/fixtures/nginx/simple/',
+            '/amplify/test/fixtures/nginx/simple/conf.d/'
+        ]))
 
         # includes
         cfg = NginxConfigParser(includes_config)
-        files = cfg.collect_all_files()
+        files, directories = cfg.get_structure()
         assert_that(files.keys(), equal_to([
             '/amplify/test/fixtures/nginx/includes/conf.d/something.conf',
             '/amplify/test/fixtures/nginx/includes/mime.types',
             '/amplify/test/fixtures/nginx/includes/conf.d/additional.conf',
             '/amplify/test/fixtures/nginx/includes/conf.d/include.conf',
             '/amplify/test/fixtures/nginx/includes/nginx.conf'
+        ]))
+        assert_that(directories.keys(), equal_to([
+            '/amplify/test/fixtures/nginx/includes/',
+            '/amplify/test/fixtures/nginx/includes/conf.d/'
         ]))
 
     def test_parse_windows(self):
@@ -309,7 +348,7 @@ class ParserTestCase(BaseTestCase):
         Checks that we get file permissions during lightweight parsing
         """
         cfg = NginxConfigParser(simple_config)
-        files = cfg.collect_all_files()
+        files, directories = cfg.get_structure()
 
         test_file = '/amplify/test/fixtures/nginx/simple/conf.d/something.conf'
         size = os.path.getsize(test_file)
@@ -318,7 +357,17 @@ class ParserTestCase(BaseTestCase):
 
         assert_that(
             files[test_file],
-            equal_to('%s_%s_%s' % (size, mtime, permissions))
+            equal_to({'size': size, 'mtime': mtime, 'permissions': permissions})
+        )
+
+        test_directory = '/amplify/test/fixtures/nginx/simple/conf.d/'
+        size = os.path.getsize(test_directory)
+        mtime = int(os.path.getmtime(test_directory))
+        permissions = oct(os.stat(test_directory).st_mode & 0777)
+
+        assert_that(
+            directories[test_directory],
+            equal_to({'size': size, 'mtime': mtime, 'permissions': permissions})
         )
 
     def test_sub_filter(self):
@@ -332,3 +381,10 @@ class ParserTestCase(BaseTestCase):
                 '\'</body>\'\'<p style="position: fixed;top:\n            60px;width:100%;;background-color: #f00;background-color:\n            rgba(255,0,0,0.5);color: #000;text-align: center;font-weight:\n            bold;padding: 0.5em;z-index: 1;">Test</p></body>\''
             )
         )
+
+    def test_proxy_pass(self):
+        cfg = NginxConfigParser(proxy_pass_config)
+        cfg.parse()
+        tree = cfg.simplify()
+
+        assert_that(tree['http']['proxy_pass'], equal_to('$scheme://${scheme}site.com_backend'))

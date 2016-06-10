@@ -15,7 +15,7 @@ context.setup(
     config_file='etc/agent.conf.development',
 )
 
-from amplify.agent.objects.nginx.config import NginxConfig
+from amplify.agent.objects.nginx.config.config import NginxConfig
 
 
 __author__ = "Mike Belov"
@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
     else:
         print('\n\033[32mLight parse results for %s\033[0m' % filename)
-        print(json.dumps(cfg.get_all_files(), **print_args))
+        print(json.dumps(cfg.collect_structure(), **print_args))
 
     end_time = time.time()
 

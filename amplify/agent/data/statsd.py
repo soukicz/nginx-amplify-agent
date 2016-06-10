@@ -121,7 +121,7 @@ class StatsdClient(object):
 
     def flush(self):
         if not self.current:
-            return
+            return {'object': self.object.definition}
 
         results = {}
         delivery = copy.deepcopy(self.current)

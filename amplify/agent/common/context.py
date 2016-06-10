@@ -34,10 +34,12 @@ class Context(Singleton):
 
         self.set_pid()
 
-        self.version_major = 0.33
-        self.version_build = 3
+        self.version_major = 0.34
+        self.version_build = 1
         self.version = '%s-%s' % (self.version_major, self.version_build)
         self.environment = None
+        self.imagename = None
+        self.container_type = None
         self.http_client = None
         self.default_log = None
         self.app_name = None
@@ -66,6 +68,7 @@ class Context(Singleton):
         Setup common environment vars
         """
         self.environment = os.environ.get('AMPLIFY_ENVIRONMENT', 'production')
+        self.imagename = os.environ.get('AMPLIFY_IMAGENAME')
 
     def setup(self, **kwargs):
         self._setup_app_config(**kwargs)
@@ -74,6 +77,7 @@ class Context(Singleton):
         self._setup_http_client()
         self._setup_object_tank()
         self._setup_plus_cache()
+        self._setup_container_details()
 
     def _setup_app_config(self, **kwargs):
         self.app_name = kwargs.get('app')
@@ -90,6 +94,13 @@ class Context(Singleton):
             # This means 'daemon' in self.app_config.keys() is a reasonable test for detecting whether agent is running
             # as a daemon or in the foreground (or generically using self.app_config.get('daemon') which will return
             # None if running in foreground).
+
+        # If an image name is not specified, but there is an AMPLIFY_IMAGENAME environment variable, set the config
+        # value to the environment value.  This means that config file will always take precedence.  This also means
+        # that the app_config is the source of truth for our program logic when trying to determine imagename/whether or
+        # not in a container.
+        if not self.app_config['credentials']['imagename'] and self.imagename:
+            self.app_config['credentials']['imagename'] = self.imagename
 
     def _setup_app_logs(self):
         from amplify.agent.common.util import logger
@@ -114,6 +125,10 @@ class Context(Singleton):
     def _setup_plus_cache(self):
         from amplify.agent.tanks.plus_cache import PlusCache
         self.plus_cache = PlusCache()
+
+    def _setup_container_details(self):
+        from amplify.agent.common.util import container
+        self.container_type = container.container_environment()
 
     def get_file_handlers(self):
         return [

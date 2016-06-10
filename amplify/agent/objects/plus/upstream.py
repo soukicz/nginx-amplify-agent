@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
+from amplify.agent.collectors.plus.upstream import UpstreamCollector
 from amplify.agent.objects.plus.abstract import PlusObject
-from amplify.agent.objects.plus.collectors.upstream import UpstreamCollector
-
 
 __author__ = "Grant Hulegaard"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."

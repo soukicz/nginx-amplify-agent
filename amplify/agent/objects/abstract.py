@@ -3,8 +3,6 @@ import abc
 import hashlib
 import time
 
-from collections import defaultdict
-from threading import current_thread
 from gevent import queue, GreenletExit
 
 from amplify.agent.data.eventd import EventdClient
@@ -138,90 +136,3 @@ class AbstractObject(object):
                 results[name] = client.flush()
 
         return results
-
-
-class AbstractCollector(object):
-    """
-    Abstract data collector
-    Runs in a thread and collects specific data
-    """
-    short_name = None
-
-    def __init__(self, object=None, interval=None):
-        self.object = object
-        self.interval = interval
-        self.previous_values = defaultdict(dict)  # for deltas
-
-    def run(self):
-        """
-        Common collector cycle
-
-        1. Collect data
-        2. Sleep
-        3. Stop if object stopped
-        """
-        # TODO: Standardize this with Managers.
-        current_thread().name = self.short_name
-        context.setup_thread_id()
-
-        try:
-            while True:
-                context.inc_action_id()
-                if self.object.running:
-                    self._collect()
-                    self._sleep()
-                else:
-                    break
-
-            raise GreenletExit  # Since kill signals won't work, we raise it ourselves.
-        except GreenletExit:
-            context.log.debug(
-                '%s collector for %s received exit signal' % (self.__class__.__name__, self.object.definition_hash)
-            )
-        except:
-            context.log.error(
-                '%s collector run failed' % self.object.definition_hash,
-                exc_info=True
-            )
-            raise
-
-    def _collect(self):
-        """
-        Wrapper for actual collect process.  Handles memory reporting before and after collect process.
-        """
-        start_time = time.time()
-        try:
-            self.collect()
-        except:
-            raise
-        finally:
-            end_time = time.time()
-            context.log.debug('%s collect in %.3f' % (self.object.definition_hash, end_time - start_time))
-
-    def _sleep(self):
-        time.sleep(self.interval)
-
-    @abc.abstractmethod
-    def collect(self):
-        """
-        Real collect method
-        Override it
-        """
-        pass
-
-    def increment_counters(self, counted_vars, stamp):
-        """
-        Increment counter method that takes a dictionary of metric name - value pairs increments statsd appropriately
-        based on previous values.
-
-        :param counted_vars: Dict Metric name - value pairs
-        :param stamp: Int Timestamp of Plus collect
-        """
-        for metric_name, value in counted_vars.iteritems():
-            prev_stamp, prev_value = self.previous_values.get(metric_name, [None, None])
-
-            if prev_stamp:
-                value_delta = value - prev_value
-                self.object.statsd.incr(metric_name, value_delta, stamp=stamp)
-
-            self.previous_values[metric_name] = [stamp, value]
