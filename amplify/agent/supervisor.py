@@ -158,6 +158,8 @@ class Supervisor(object):
 
         # talk to cloud
         try:
+            self.last_cloud_talk_time = int(time.time())
+
             cloud_response = CloudResponse(
                 context.http_client.post('agent/', data=root_object)
             )
@@ -237,8 +239,6 @@ class Supervisor(object):
             if not initial:
                 self.init_object_managers()
             context.cloud_restart = False
-
-        self.last_cloud_talk_time = int(time.time())
 
     def check_bridge(self):
         """

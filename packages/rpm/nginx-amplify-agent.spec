@@ -138,6 +138,10 @@ fi
 
 
 %changelog
+* Wed Jun 22 2016 Mike Belov <dedm@nginx.com> 0.34-2
+- 0.34-2
+- Bug fixes
+
 * Fri Jun 10 2016 Mike Belov <dedm@nginx.com> 0.34-1
 - 0.34-1
 - NGINX+ metrics aggregation support
