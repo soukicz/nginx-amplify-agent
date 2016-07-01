@@ -2,7 +2,7 @@
 api_key = 
 hostname = 
 uuid =
-imagename =
+imagename = 
 
 [nginx]
 #user = nginx

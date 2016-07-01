@@ -158,6 +158,7 @@ class Supervisor(object):
 
         # talk to cloud
         try:
+            # reset the cloud talk counter to avoid sending new requests every 5.0 seconds.
             self.last_cloud_talk_time = int(time.time())
 
             cloud_response = CloudResponse(

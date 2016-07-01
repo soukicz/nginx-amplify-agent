@@ -49,6 +49,7 @@ class ParserTestCase(BaseTestCase):
         assert_that(http, has_key('server'))
         assert_that(http, has_key('types'))
         assert_that(http, has_key('include'))
+        assert_that(http, has_key('add_header'))
         assert_that(http['server'], is_(instance_of(list)))
         assert_that(http['server'], has_length(2))
 
@@ -72,6 +73,10 @@ class ParserTestCase(BaseTestCase):
         # included mimes
         mimes = http['types']
         assert_that(mimes, has_key('application/java-archive'))
+
+        # add_header
+        add_header = http['add_header']
+        assert_that(add_header, contains_string('"max-age=31536000; includeSubdomains; ;preload"'))
 
         # check index tree
         worker_connections_index = indexed_tree['events'][0]['worker_connections'][1]
@@ -111,34 +116,12 @@ class ParserTestCase(BaseTestCase):
         assert_that(cfg.index[books_location_index], equal_to((0, 135)))  # root file, line number 135
 
         # check directory map
-        assert_that(cfg.directory_map, equal_to({
-            '/amplify/test/fixtures/nginx/huge/': {
-                'info': {'permissions': '0755', 'mtime': 1463763109, 'size': 136},
-                'files': {
-                    '/amplify/test/fixtures/nginx/huge/mime.types': {
-                        'info': {'index': 1, 'permissions': '0644', 'mtime': 1463763109, 'lines': 77, 'size': 3870}
-                    },
-                     '/amplify/test/fixtures/nginx/huge/gce-public-networks.conf': {
-                         'error': 'IOError: No such file or directory'
-                     },
-                     '/amplify/test/fixtures/nginx/huge/ec2-public-networks.conf': {
-                         'error': 'IOError: No such file or directory'
-                     },
-                     '/amplify/test/fixtures/nginx/huge/azure-public-networks.conf': {
-                         'error': 'IOError: No such file or directory'
-                     },
-                     '/amplify/test/fixtures/nginx/huge/mime.types2': {
-                         'error': 'IOError: No such file or directory'
-                     },
-                     '/amplify/test/fixtures/nginx/huge/nginx.conf': {
-                         'info': {'index': 0, 'permissions': '0644', 'mtime': 1463763109, 'lines': 364, 'size': 8892}
-                     },
-                     '/amplify/test/fixtures/nginx/huge/dir.map': {
-                         'error': 'IOError: No such file or directory'
-                     }
-                }
-            }
-        }))
+        assert_that(cfg.directory_map, has_key('/amplify/test/fixtures/nginx/huge/'))
+        for key in ('info', 'files'):
+            assert_that(cfg.directory_map['/amplify/test/fixtures/nginx/huge/'], has_key(key))
+
+        files = cfg.directory_map['/amplify/test/fixtures/nginx/huge/']['files']
+        assert_that(files, has_length(7))
 
     def test_parse_complex(self):
         cfg = NginxConfigParser(complex_config)

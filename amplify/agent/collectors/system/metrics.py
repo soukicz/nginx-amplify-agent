@@ -13,7 +13,7 @@ from amplify.agent.collectors.abstract import AbstractCollector
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
@@ -29,6 +29,7 @@ class SystemMetricsCollector(AbstractCollector):
         for method in (
             self.agent,
             self.container,
+            self.agent_cpu,
             self.virtual_memory,
             self.swap,
             self.cpu,
@@ -52,7 +53,13 @@ class SystemMetricsCollector(AbstractCollector):
     def container(self):
         """ send counter for container object """
         if self.object.type == 'container':
-            self.object.statsd.incr('container.count')
+            self.object.statsd.incr('amplify.agent.container.count')
+
+    def agent_cpu(self):
+        """ agent cpu times """
+        user, system = context.psutil_process.cpu_percent()
+        self.object.statsd.gauge('amplify.agent.cpu.user', user)
+        self.object.statsd.gauge('amplify.agent.cpu.system', system)
 
     def virtual_memory(self):
         """ virtual memory """

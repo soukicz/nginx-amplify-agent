@@ -264,3 +264,38 @@ class LogsOverallTestCase(NginxCollectorTestCase):
             else:
                 if counter_key not in collector.parser.request_variables:
                     assert_that(counter, not_(has_key('C|%s' % counter_name)))
+
+    def test_variables_with_numbers(self):
+        """
+        Account for nginx variables with numbers in them.
+
+        https://jira.nginx.com/browse/NAAS-1544
+        """
+        log_format = '$remote_addr [$time_local] $status $geoip_country_code ' + \
+                     '$geoip_country_code3 "$geoip_country_name"'
+
+        lines = [
+            '10.10.10.102 [29/Jun/2016:23:31:07 +0000] 200 US USA "United States"',
+            '10.10.10.46 [29/Jun/2016:23:34:33 +0000] 200 CA CAN "Canada"',
+            '10.10.10.189 [29/Jun/2016:23:34:42 +0000] 200 IE IRL "Ireland"',
+            '10.10.10.194 [29/Jun/2016:23:35:02 +0000] 200 NL NLD "Netherlands"',
+            '10.10.10.198 [29/Jun/2016:23:37:08 +0000] 200 FR FRA "France"',
+            '10.10.10.232 [29/Jun/2016:23:37:49 +0000] 200 SG SGP "Singapore"',
+            '10.10.10.100 [29/Jun/2016:23:38:19 +0000] 200 ID IDN "Indonesia"'
+        ]
+
+        collector = NginxAccessLogsCollector(object=self.fake_object, log_format=log_format, tail=lines)
+        collector.collect()
+
+        # Make sure that variable name with number is properly formatted...
+        regex_string = collector.parser.regex_string
+        assert_that(regex_string, contains_string('<geoip_country_code>'))
+        assert_that(regex_string, contains_string('<geoip_country_code3>'))
+
+        # check
+        metrics = self.fake_object.statsd.flush()['metrics']
+        assert_that(metrics, has_item('counter'))
+
+        # check some values
+        counter = metrics['counter']
+        assert_that(counter['C|nginx.http.status.2xx'][0][1], equal_to(7))

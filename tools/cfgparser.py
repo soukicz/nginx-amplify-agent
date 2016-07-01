@@ -85,6 +85,9 @@ if __name__ == '__main__':
         print('\n\033[32mConfig files for %s\033[0m' % filename)
         print(json.dumps(cfg.files, **print_args))
 
+        print('\n\033[32mConfig directory map for %s\033[0m' % filename)
+        print(json.dumps(cfg.directory_map, **print_args))
+
         print('\n\033[32mStub/plus status %s\033[0m' % filename)
         print(json.dumps(cfg.stub_status_urls, **print_args))
         print(json.dumps(cfg.plus_status_external_urls, **print_args))

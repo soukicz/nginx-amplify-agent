@@ -5,7 +5,7 @@ from amplify.agent.collectors.plus.abstract import PlusStatusCollector
 
 __author__ = "Grant Hulegaard"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Grant Hulegaard"
 __email__ = "grant.hulegaard@nginx.com"
@@ -36,6 +36,7 @@ class UpstreamCollector(PlusStatusCollector):
                         self.upstream_fails,
                         self.upstream_health_checks,
                         self.upstream_queue,
+                        self.upstream_peer_count
                     ):
                         try:
                             method(peer, stamp)
@@ -49,6 +50,7 @@ class UpstreamCollector(PlusStatusCollector):
 
                 try:
                     self.increment_counters()
+                    self.set_latest_peer_count(stamp)
                 except Exception as e:
                     exception_name = e.__class__.__name__
                     context.log.error(
@@ -90,3 +92,7 @@ class UpstreamCollector(PlusStatusCollector):
 
     def upstream_queue(self, data, stamp):
         upstream.collect_upstream_queue(self, data, stamp)
+
+    def upstream_peer_count(self, data, stamp):
+        upstream.incr_upstream_peer_count(self, data, stamp)
+

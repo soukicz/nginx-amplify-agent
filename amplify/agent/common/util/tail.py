@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
+import time
 from os import stat
+
+from amplify.agent.common.context import context
+
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -64,14 +68,25 @@ class FileTail(object):
         :return: bool
         """
         # wait for new file
+        tries = 0
         new_inode = self._inode
-        while True:
+
+        while tries < 2:  # Try twice before moving on.
             try:
                 new_inode = stat(self.filename).st_ino
             except:
+                time.sleep(0.5)
+                tries += 1
                 pass
             else:
                 break
+
+        # If tries == 2 then we know we broke out of the while above manually.
+        if tries == 2:
+            context.log.error('could not check if file "%s" was rotated (maybe file was deleted?)' % self.filename)
+            context.log.debug('additional info:', exc_info=True)
+            raise StopIteration
+
         return new_inode != self._inode
 
     def __next__(self):

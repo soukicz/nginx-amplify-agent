@@ -16,7 +16,7 @@ from amplify.agent.collectors.abstract import AbstractCollector
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
@@ -290,7 +290,7 @@ class CommonNginxMetricsCollector(AbstractCollector):
                     method(self, peer, stamp)
 
         self.increment_counters()
-
+        self.set_latest_peer_count()
 
 class NginxMetricsCollector(CommonNginxMetricsCollector):
 

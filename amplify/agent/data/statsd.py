@@ -6,7 +6,7 @@ from collections import defaultdict
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
@@ -24,6 +24,19 @@ class StatsdClient(object):
         self.interval = interval
         self.current = defaultdict(dict)
         self.delivery = defaultdict(dict)
+
+    def latest(self, metric_name, value, stamp=None):
+        """
+        Stores the most recent value of a gauge
+
+        :param metric_name: metric name
+        :param value: metric value
+        :param stamp: timestamp (current timestamp will be used if this is not specified)
+        """
+        timestamp = stamp or int(time.time())
+        gauges = self.current['gauge']
+        if metric_name not in gauges or timestamp > gauges[metric_name][0][0]:
+            gauges[metric_name] = [(timestamp, value)]
 
     def average(self, metric_name, value):
         """

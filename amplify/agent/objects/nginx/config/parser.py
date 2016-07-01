@@ -81,6 +81,7 @@ class NginxConfigParser(object):
     map_key = Keyword("map").setParseAction(set_line_number)
     server_name_key = Keyword("server_name").setParseAction(set_line_number)
     sub_filter_key = Keyword("sub_filter").setParseAction(set_line_number)
+    add_header_key = Keyword("add_header").setParseAction(set_line_number)
 
     # lua keys
     start_with_lua_key = Regex(r'lua_\S+').setParseAction(set_line_number)
@@ -105,12 +106,13 @@ class NginxConfigParser(object):
     language_include_value = CharsNotIn("'").setParseAction(set_line_number)
     strict_value = CharsNotIn("{};").setParseAction(set_line_number)
     sub_filter_value = (non_space_value | Regex(r"\'(.|\n)+?\'",)).setParseAction(set_line_number)
+    add_header_value = Regex('[^{};]*".+?"').setParseAction(set_line_number)
 
     # map values
-    map_value_one = Regex(r'\'([^\']|\s)*\'').setParseAction(set_line_number)
-    map_value_two = Regex(r'"([^"]|\s)*\"').setParseAction(set_line_number)
-    map_value_three = Regex(r'((\\\s|[^{};\s])*)').setParseAction(set_line_number)
-    map_value = (map_value_one | map_value_two | map_value_three)
+    map_value_one = Regex(r'\'([^\']|\s)*\'')
+    map_value_two = Regex(r'"([^"]|\s)*\"')
+    map_value_three = Regex(r'((\\\s|[^{};\s])*)')
+    map_value = (map_value_one | map_value_two | map_value_three).setParseAction(set_line_number)
 
     # modifier for location uri [ = | ~ | ~* | ^~ ]
     modifier = Literal("=") | Literal("~*") | Literal("~") | Literal("^~")
@@ -160,6 +162,10 @@ class NginxConfigParser(object):
         sub_filter_key + space + sub_filter_value + space + sub_filter_value + Optional(space) + semicolon
     ).setParseAction(set_line_number)
 
+    add_header = (
+        add_header_key + space + non_space_value + space + add_header_value + Optional(space) + semicolon
+    ).setParseAction(set_line_number)
+
     # script
     map_block = Forward()
     map_block << Group(
@@ -188,7 +194,7 @@ class NginxConfigParser(object):
         left_brace +
         Group(
             ZeroOrMore(
-                 Group(log_format) | Group(lua_content) | Group(perl_set) |
+                 Group(add_header) |Group(log_format) | Group(lua_content) | Group(perl_set) |
                  Group(set) | Group(rewrite) | Group(alias) | Group(return_) |
                  Group(assignment) | Group(server_name) | Group(sub_filter) |
                  map_block | block
@@ -198,6 +204,7 @@ class NginxConfigParser(object):
     )
 
     script = OneOrMore(
+        Group(add_header) |
         Group(log_format) | Group(perl_set) | Group(lua_content) | Group(alias) | Group(return_) |
         Group(assignment) | Group(set) | Group(rewrite) | Group(sub_filter) |
         map_block | block
@@ -283,28 +290,35 @@ class NginxConfigParser(object):
 
         :param path: path to a file
         """
+        def populate_directory(dir_path):
+            if dir_path not in self.directories:
+                try:
+                    size, mtime, permissions = self.get_filesystem_info(dir_path)
+                    self.directories[dir_path] = {
+                        'size': size,
+                        'mtime': mtime,
+                        'permissions': permissions
+                    }
+
+                    # try to list dir - maybe we can get an error on that
+                    os.listdir(dir_path)
+
+                except Exception as e:
+                    exception_name = e.__class__.__name__
+                    exception_message = e.strerror if hasattr(e, 'strerror') else e.message
+                    message = 'failed to read %s due to: %s' % (directory_path, exception_name)
+                    context.log.debug(message, exc_info=True)
+                    self.errors.append(message)
+                    self.broken_directories.add(dir_path)
+                    self.directory_errors.append((exception_name, exception_message))
+
         # store directory results
         directory_path = self.resolve_directory(path)
-        if directory_path not in self.directories:
-            try:
-                size, mtime, permissions = self.get_filesystem_info(directory_path)
-                self.directories[directory_path] = {
-                    'size': size,
-                    'mtime': mtime,
-                    'permissions': permissions
-                }
-
-                # try to list dir - maybe we can get an error on that
-                os.listdir(directory_path)
-
-            except Exception as e:
-                exception_name = e.__class__.__name__
-                exception_message = e.strerror if hasattr(e, 'strerror') else e.message
-                message = 'failed to read %s due to: %s' % (directory_path, exception_name)
-                context.log.debug(message, exc_info=True)
-                self.errors.append(message)
-                self.broken_directories.add(directory_path)
-                self.directory_errors.append((exception_name, exception_message))
+        if '*' in directory_path:
+            for path in glob.glob(directory_path):
+                populate_directory(path)
+        else:
+            populate_directory(directory_path)
 
     def resolve_includes(self, path):
         """

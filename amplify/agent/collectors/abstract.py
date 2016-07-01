@@ -29,6 +29,7 @@ class AbstractCollector(object):
         self.previous_values = defaultdict(dict)  # for deltas
         self.current_values = defaultdict(int)  # for aggregating
         self.current_stamps = defaultdict(time.time)
+        self.current_peer_count = 0
 
     def run(self):
         """
@@ -98,8 +99,11 @@ class AbstractCollector(object):
 
             if isinstance(prev_value, (int, float)) and prev_stamp:
                 value_delta = value - prev_value
-                self.object.statsd.incr(metric_name, value_delta, stamp=stamp)
+                if value_delta >= 0:
+                    # Only increment our statsd client and send data to backend if calculated value is non-negative.
+                    self.object.statsd.incr(metric_name, value_delta, stamp=stamp)
 
+            # Re-base the calculation for next collect
             self.previous_values[metric_name] = (stamp, value)
 
         # reset counter stores
@@ -117,3 +121,11 @@ class AbstractCollector(object):
             self.current_values[metric_name] += value
             if stamp:
                 self.current_stamps[metric_name] = stamp
+
+    def set_latest_peer_count(self, stamp=None):
+        """
+        Sets the latest upstream peer count metric then returns the collector's count to 0
+        """
+        count = self.current_peer_count
+        self.object.statsd.latest('plus.upstream.peer.count', count, stamp)
+        self.current_peer_count = 0

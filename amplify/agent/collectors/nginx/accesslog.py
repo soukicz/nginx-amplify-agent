@@ -345,17 +345,18 @@ class NginxAccessLogsCollector(AbstractCollector):
         # counters
         upstream_response = False
         if 'upstream_status' in data:
-            status = data['upstream_status']
+            bucket = data['upstream_status']  # comma separated variables are always returned as list by parser
 
-            if status.isdigit():
-                suffix = '%sxx' % status[0]
-                metric_name = 'nginx.upstream.status.%s' % suffix
-                upstream_response = True if suffix in ('2xx', '3xx') else False   # Set flag for upstream length processing
-                self.object.statsd.incr(metric_name)
+            for status in bucket:
+                if status.isdigit():
+                    suffix = '%sxx' % status[0]
+                    metric_name = 'nginx.upstream.status.%s' % suffix
+                    upstream_response = True if suffix in ('2xx', '3xx') else False   # Set flag for upstream length processing
+                    self.object.statsd.incr(metric_name)
 
-                # call custom filters
-                if matched_filters:
-                    self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
+                    # call custom filters
+                    if matched_filters:
+                        self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 
         if upstream_response and 'upstream_response_length' in data:
             metric_name, value = 'nginx.upstream.response.length', data['upstream_response_length']

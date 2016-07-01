@@ -34,8 +34,8 @@ class Context(Singleton):
 
         self.set_pid()
 
-        self.version_major = 0.34
-        self.version_build = 2
+        self.version_major = 0.35
+        self.version_build = 1
         self.version = '%s-%s' % (self.version_major, self.version_build)
         self.environment = None
         self.imagename = None

@@ -71,20 +71,6 @@ def test(config_file, pid_file):
             print("Write your API key in [credentials][api_key]")
             return 1
 
-        # check hostname
-        try:
-            hostname = find_hostname()
-        except AmplifyCriticalException:
-            hostname = None
-
-        if not hostname:
-            print("\033[31mCould not find a valid hostname\033[0m\n")
-            print("Check the log for more information")
-            print("You should consider the following:")
-            print("  1. Consult the log for information why a discovered hostname is not valid")
-            print("  2. Define a valid hostname for agent to use in the config under [credentials][hostname]")
-            return 1
-
         # test logger
         try:
             context.log.info('configtest check')

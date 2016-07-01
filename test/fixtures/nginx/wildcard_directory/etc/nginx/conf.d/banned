@@ -1,0 +1,7 @@
+deny 10.10.10.10;
+
+geo $http_x_forwarded_for $is_banned {
+    default              0;
+
+    100.100.100.221      1;
+}

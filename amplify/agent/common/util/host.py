@@ -11,7 +11,6 @@ import psutil
 from amplify.agent.common.util import subp
 
 from amplify.agent.common.context import context
-from amplify.agent.common.errors import AmplifyCriticalException
 from amplify.agent.common.util.ec2 import AmazonEC2
 
 __author__ = "Mike Belov"
@@ -101,11 +100,10 @@ def hostname():
             result = socket_hostname
 
     if result is None:
-        raise AmplifyCriticalException(
-            message='Unable to determine host name. Define it in the config file'
-        )
-    else:
-        return result
+        result = "%s-%s" % (os_name(), uuid())
+        context.log.info('Unable to determine hostname, auto-generated one: "%s"' % result)
+
+    return result
 
 
 def os_name():
@@ -190,10 +188,18 @@ def alive_interfaces():
             ip_link_out, _ = subp.call("ip link show dev %s" % interface_name, check=False)
             if ip_link_out:
                 first_line = ip_link_out[0]
-                r = re.match('.+state\s+(\w+)\s+.*', first_line)
-                if r:
-                    state = r.group(1)
+                state_match = re.match('.+state\s+(\w+)\s+.*', first_line)
+                if state_match:
+                    state = state_match.group(1)
                     if interface_name == 'lo' or state == 'UP':
                         alive_interfaces.add(interface_name)
+                    elif state == 'UNKOWN':
+                        # If state is 'UNKNOWN" (e.g. venet with OpenVZ) check to see if 'UP' is in bracket summary
+                        bracket_match = re.match('.+<([\w,\,]+)>.+', first_line)
+                        bracket = bracket_match.group(0)
+                        for value in bracket.split(','):
+                            if value == 'UP':
+                                alive_interfaces.add(interface_name)
+                                break
 
     return alive_interfaces

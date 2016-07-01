@@ -26,6 +26,7 @@ fastcgi_config = os.getcwd() + '/test/fixtures/nginx/fastcgi/nginx.conf'
 json_config = os.getcwd() + '/test/fixtures/nginx/custom/json.conf'
 ssl_simple_config = os.getcwd() + '/test/fixtures/nginx/ssl/simple/nginx.conf'
 regex_status_config = os.getcwd() + '/test/fixtures/nginx/regex_status/nginx.conf'
+wildcard_directory_config = os.getcwd() + '/test/fixtures/nginx/wildcard_directory/etc/nginx/nginx.conf'
 
 
 class ConfigTestCase(BaseTestCase):
@@ -260,6 +261,27 @@ class ConfigTestCase(BaseTestCase):
             address = url.split('/')[0]
             valid_urls = valid_urls_dict[address]
             assert_that(valid_urls, has_item(url))
+
+    def test_parse_wildcard_dir(self):
+        """
+        Tests wild card directory handling.
+        """
+        config = NginxConfig(wildcard_directory_config)
+        config.full_parse()
+
+        assert_that(
+            config.directory_map,
+            has_key(
+                '/amplify/test/fixtures/nginx/wildcard_directory/data/www/test.domain.info/config/nginx/'
+            )
+        )
+        files = config.directory_map[
+            '/amplify/test/fixtures/nginx/wildcard_directory/data/www/test.domain.info/config/nginx/'
+        ]['files']
+        assert_that(
+            files,
+            has_key('/amplify/test/fixtures/nginx/wildcard_directory/data/www/test.domain.info/config/nginx/test.conf')
+        )
 
 
 class MiscConfigTestCase(BaseTestCase):

@@ -64,7 +64,7 @@ class LogParserTestCase(BaseTestCase):
         assert_that(parsed['request_uri'], equal_to('/basic_status'))
         assert_that(parsed['server_protocol'], equal_to('HTTP/1.1'))
 
-    def test_mailformed_request(self):
+    def test_malformed_request(self):
         line = '10.0.0.1 - - [03/Jul/2015:04:46:18 -0400] "/xxx?q=1 GET POST" 400 173 "-" "-" "-"'
 
         parser = NginxAccessLogParser()
@@ -137,7 +137,7 @@ class LogParserTestCase(BaseTestCase):
         for key in expected_keys:
             assert_that(parsed, has_item(key))
 
-        assert_that(parsed['upstream_addr'], equal_to('173.194.32.133:80'))
+        assert_that(parsed['upstream_addr'], equal_to(['173.194.32.133:80']))
         assert_that(parsed['connection'], equal_to('62277'))
         assert_that(parsed['malformed'], equal_to(False))
         assert_that(parsed['upstream_cache_status'], equal_to('MISS'))
@@ -310,3 +310,24 @@ class LogParserTestCase(BaseTestCase):
 
         for key in expected_keys:
             assert_that(parsed, has_item(key))
+
+    def test_comma_separated_values(self):
+        """
+        Check some super complex user format with cache
+        """
+        user_format = '"$upstream_addr" $upstream_status'
+        line = '"173.194.32.133:80, 173.194.32.133:81, 173.194.32.133:82" 200, 200, 200'
+
+        expected_keys = [
+            'upstream_addr', 'upstream_status'
+        ]
+        parser = NginxAccessLogParser(user_format)
+        for key in expected_keys:
+            assert_that(parser.keys, has_item(key))
+
+        parsed = parser.parse(line)
+        for key in expected_keys:
+            assert_that(parsed, has_item(key))
+
+        assert_that(parsed['upstream_addr'], equal_to(['173.194.32.133:80', '173.194.32.133:81', '173.194.32.133:82']))
+        assert_that(parsed['upstream_status'], equal_to(['200', '200', '200']))

@@ -138,26 +138,35 @@ def _parse_arguments(argstring):
     current_key = None
     current_value = None
 
+    def _save_value(key, value):
+        if key in arguments:
+            if not isinstance(arguments[key], list):
+                arguments[key] = [arguments[key]]
+
+            arguments[key].append(value)
+        else:
+            arguments[key] = value
+
     for part in argstring.split(' --'):
         if '=' in part:
             # next part of compound
             if current_key and current_value:
                 current_value += part
                 if part.endswith("'"):
-                    arguments[current_key] = current_value
+                    _save_value(current_key, current_value)
                     current_key = None
                     current_value = None
             else:
                 k, v = part.split('=', 1)
                 # compound argument
                 if v.startswith("'") and v.endswith("'"):
-                    arguments[k] = v
+                    _save_value(k, v)
                 elif v.startswith("'"):
                     current_key = k
                     current_value = v
                 # simple argument
                 else:
-                    arguments[k] = v
+                    _save_value(k, v)
         else:
             # boolean
             if part:

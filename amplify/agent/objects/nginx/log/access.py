@@ -55,6 +55,11 @@ class NginxAccessLogParser(object):
         'server_protocol': ['[\d\.]+', str],
     }
 
+    comma_separated_keys = [
+        'upstream_addr',
+        'upstream_status'
+    ]
+
     def __init__(self, raw_format=None):
         """
         Takes raw format and generates regex
@@ -77,7 +82,7 @@ class NginxAccessLogParser(object):
             # Handle formats with multiple instances of the same variable.
             var_count = self.keys.count(key_without_dollar)
             if var_count > 1:  # Duplicate variables will be named starting at 2 (var, var2, var3, etc...)
-                regex_var_name = '%s%s' % (key_without_dollar, var_count)
+                regex_var_name = '%s_occurance_%s' % (key_without_dollar, var_count)
             else:
                 regex_var_name = key_without_dollar
             self.regex_string += '(?P<%s>%s)' % (regex_var_name, rxp)
@@ -85,7 +90,7 @@ class NginxAccessLogParser(object):
         for char in self.raw_format:
             if current_key:
                 # if there's a current key
-                if char.isalpha() or char == '_':
+                if char.isalpha() or char.isdigit() or char == '_':
                     # continue building key
                     current_key += char
                 else:
@@ -154,7 +159,16 @@ class NginxAccessLogParser(object):
                                 array_value.append(x)
                         if array_value:
                             result[key] = array_value
-                else:
+
+                # Handle comma separated keys
+                if key in self.comma_separated_keys:
+                    if ',' in value:
+                        list_value = value.replace(' ', '').split(',')  # remove spaces and split values into list
+                        result[key] = list_value
+                    else:
+                        result[key] = [value]
+
+                if key not in result.keys() and not key.endswith('_time'):
                     result[key] = value
         else:
             context.default_log.debug(

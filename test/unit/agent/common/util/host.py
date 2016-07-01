@@ -22,4 +22,3 @@ class HostTestCase(WithConfigTestCase):
 
         os_name = host.os_name()
         assert_that(os_name, is_not(None))
-

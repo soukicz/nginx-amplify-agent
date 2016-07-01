@@ -4,7 +4,7 @@ import copy
 
 __author__ = "Grant Hulegaard"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Grant Hulegaard"
 __email__ = "grant.hulegaard@nginx.com"
@@ -92,6 +92,10 @@ def collect_upstream_queue(collector, data, stamp):
         collector.aggregate_counters(copy.deepcopy(counted_vars), stamp=stamp)
 
 
+def incr_upstream_peer_count(collector, data, stamp):
+    collector.current_peer_count += 1
+
+
 UPSTREAM_COLLECT_INDEX = [
     collect_active_connections,
     collect_upstream_request,
@@ -102,4 +106,5 @@ UPSTREAM_COLLECT_INDEX = [
     collect_upstream_fails,
     collect_upstream_health_checks,
     collect_upstream_queue,
+    incr_upstream_peer_count
 ]
