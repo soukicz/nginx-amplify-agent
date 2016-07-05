@@ -480,7 +480,7 @@ fi
 # Check agent capabilities
 if [ "${errors}" -eq 0 ]; then
     # Check if the agent is able to use ps(1)
-    printf "\033[32m ${step}. Checking if the euid ${amplify_euid}(${amplify_user}) can find root processes ...\033[0m"
+    printf "\033[32m ${step}. Checking if euid ${amplify_euid}(${amplify_user}) can find root processes ...\033[0m"
 
     sudo -u ${amplify_user} /bin/sh -c "ps xao user,pid,ppid,command" 2>&1 | grep "^root" >/dev/null 2>&1
 
@@ -493,7 +493,7 @@ if [ "${errors}" -eq 0 ]; then
 
     incr_step
 
-    printf "\033[32m ${step}. Checking if the euid ${amplify_euid}(${amplify_user}) can access I/O counters ...\033[0m"
+    printf "\033[32m ${step}. Checking if euid ${amplify_euid}(${amplify_user}) can access I/O counters ...\033[0m"
 
     sudo -u ${amplify_user} /bin/sh -c 'cat /proc/$$/io' >/dev/null 2>&1
 
@@ -540,7 +540,7 @@ if [ -n "${downloader}" ]; then
 fi
 
 # Check system time
-printf "\033[32m ${step}. Checking system time ...\033[0m"
+printf "\033[32m ${step}. Checking system time with ntpdate(8) ...\033[0m"
 if command -V ntpdate > /dev/null 2>&1; then
     ntp_offset=`ntpdate -4qu ${public_ntp} 2>&1 < /dev/null | grep -i 'ntpdate.*offset' | \
 		sed 's/.*offset [-]*\([.0-9][.0-9]*\) .*/\1/'`
@@ -553,11 +553,11 @@ if command -V ntpdate > /dev/null 2>&1; then
     if [ "${check_offset}" -eq 1 ]; then
 	printf "\033[32m ok.\033[0m\n"
     else
-	printf "\033[31m offset > 5s - please adjust the system time using ntpdate(8) !\033[0m\n"
+	printf "\033[31m offset > 5s - please adjust the system clock for proper metric collection!\033[0m\n"
 	errors=`expr $errors + 1`
     fi
 else
-    printf "\033[31m can't check system time - no ntpdate(8) installed!\033[0m\n"
+    printf "\033[31m failed - no ntpdate installed!\033[0m\n"
     errors=`expr $errors + 1`
 fi
 
