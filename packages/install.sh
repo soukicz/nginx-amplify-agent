@@ -5,12 +5,15 @@
 # Copyright (C) Nginx, Inc.
 #
 
-packages_url="http://packages.amplify.nginx.com"
+packages_url="https://packages.amplify.nginx.com"
 package_name="nginx-amplify-agent"
-public_key_url="http://nginx.org/keys/nginx_signing.key"
+public_key_url="https://nginx.org/keys/nginx_signing.key"
 agent_conf_path="/etc/amplify-agent"
 agent_conf_file="${agent_conf_path}/agent.conf"
 amplify_hostname=""
+api_url="https://receiver.amplify.nginx.com:443/ping/"
+public_ntp="north-america.pool.ntp.org"
+nginx_conf_file="/etc/nginx/nginx.conf"
 
 #
 # Functions
@@ -214,10 +217,11 @@ install_deb_or_rpm() {
 	printf "\033[32m\n ${step}. Updating repository ... done.\033[0m\n"
     else
 	printf "\033[31m\n ${step}. Updating repository ... failed.\033[0m\n\n"
+	printf "\033[32m Please check the list of supported systems here\033[0m https://git.io/vKkev\n\n"
 	exit 1
     fi
 
-    step=`expr $step + 1`
+    incr_step
 
     # Install package(s)
     printf "\033[32m ${step}. Installing package ...\033[0m\n\n"
@@ -227,10 +231,50 @@ install_deb_or_rpm() {
     ${sudo_cmd} ${install_cmd} ${package_name}
 
     if [ $? -eq 0 ]; then
-	printf "\n\033[32m ${step}. Installing package ... done.\033[0m\n"
+	printf "\033[32m\n ${step}. Installing package ... done.\033[0m\n"
     else
-	printf "\033[32m ${step}. Installing package ... failed.\033[0m\n\n"
+	printf "\033[31m\n ${step}. Installing package ... failed.\033[0m\n\n"
+	printf "\033[32m Please check the list of supported systems here\033[0m https://git.io/vKkev\n\n"
 	exit 1
+    fi
+}
+
+# Detect the user for the agent to use
+detect_amplify_user() {
+    if [ -f "${agent_conf_file}" ]; then
+	amplify_user=`grep -v '#' ${agent_conf_file} | \
+		      grep -A 5 -i '\[.*nginx.*\]' | \
+		      grep -i 'user.*=' | \
+		      awk -F= '{print $2}' | \
+		      sed 's/ //g' | \
+		      head -1`
+
+	nginx_conf_file=`grep -A 5 -i '\[.*nginx.*\]' ${agent_conf_file} | \
+			 grep -i 'configfile.*=' | \
+			 awk -F= '{print $2}' | \
+			 sed 's/ //g' | \
+			 head -1`
+    fi
+
+    if [ -f "${nginx_conf_file}" ]; then
+	nginx_user=`grep 'user[[:space:]]' ${nginx_conf_file} | \
+                    grep -v '[#].*user.*;' | \
+                    grep -v '_user' | \
+                    sed -n -e 's/.*\(user[[:space:]][[:space:]]*[^;]*\);.*/\1/p' | \
+                    awk '{ print $2 }' | head -1`
+    fi
+
+    if [ -z "${amplify_user}" ]; then
+	test -n "${nginx_user}" && \
+	amplify_user=${nginx_user} || \
+	amplify_user="nginx"
+    fi
+}
+
+incr_step() {
+    step=`expr $step + 1`
+    if [ "${step}" -lt 10 ]; then
+	step=" ${step}"
     fi
 }
 
@@ -239,6 +283,7 @@ install_deb_or_rpm() {
 #
 
 assume_yes=""
+errors=0
 
 for arg in "$@"; do
     case "$arg" in
@@ -250,30 +295,34 @@ for arg in "$@"; do
     esac
 done
 
-step=1
+step=" 1"
 
-printf "\033[32m\n This script will install NGINX Amplify Agent \n\n\033[0m"
-printf "\033[32m ${step}. Checking user ...\033[0m"
+printf "\n --- This script will install the NGINX Amplify Agent ---\n\n"
+printf "\033[32m ${step}. Checking admin user ...\033[0m"
+
+sudo_found="no"
+sudo_cmd=""
+
+# Check if sudo is installed
+if command -V sudo > /dev/null 2>&1; then
+    sudo_found="yes"
+    sudo_cmd="sudo "
+fi
 
 # Detect root
 if [ "`id -u`" = "0" ]; then
+    printf "\033[32m root, ok.\033[0m\n"
     sudo_cmd=""
 else
-    if command -V sudo > /dev/null 2>&1; then
-	sudo_cmd="sudo "
+    if [ "$sudo_found" = "yes" ]; then
+	printf "\033[33m you'll need sudo rights.\033[0m\n"
     else
 	printf "\033[33m not root, sudo not found, exiting.\033[0m\n"
 	exit 1
     fi
 fi
 
-if [ "$sudo_cmd" = "sudo " ]; then
-    printf "\033[33m you'll need sudo rights.\033[0m\n"
-else
-    printf "\033[32m root, ok.\033[0m\n"
-fi
-
-step=`expr $step + 1`
+incr_step
 
 # Add API key
 printf "\033[32m ${step}. Checking API key ...\033[0m"
@@ -289,7 +338,7 @@ else
     printf "\033[32m using ${api_key}\033[0m\n"
 fi
 
-step=`expr $step + 1`
+incr_step
 
 # Check for Python
 printf "\033[32m ${step}. Checking python version ...\033[0m"
@@ -310,7 +359,7 @@ fi
 python_version=`python -c 'import sys; print("{0}.{1}".format(sys.version_info[0], sys.version_info[1]))'`
 printf "\033[32m found python $python_version\033[0m\n"
 
-step=`expr $step + 1`
+incr_step
 
 # Check for supported OS
 printf "\033[32m ${step}. Checking OS compatibility ...\033[0m"
@@ -323,17 +372,17 @@ case "$os" in
     ubuntu|debian)
 	printf "\033[32m ${os} detected.\033[0m\n"		
 
-	step=`expr $step + 1`
+	incr_step
 
 	# Add public key
 	add_public_key_deb
 
-	step=`expr $step + 1`
+	incr_step
 
 	# Add repository configuration
 	add_repo_deb
 
-	step=`expr $step + 1`
+	incr_step
 
 	# Install package
 	update_cmd="apt-get ${assume_yes} update"
@@ -344,17 +393,17 @@ case "$os" in
     centos|amzn)
 	printf "\033[32m ${centos_flavor} detected.\033[0m\n"
 
-	step=`expr $step + 1`
+	incr_step
 
 	# Add public key
 	add_public_key_rpm
 		
-	step=`expr $step + 1`
+	incr_step
 
 	# Add repository configuration
 	add_repo_rpm
 
-	step=`expr $step + 1`
+	incr_step
 
 	# Install package
 	update_cmd="yum ${assume_yes} makecache"
@@ -372,7 +421,7 @@ case "$os" in
 	exit 1
 esac
 
-step=`expr $step + 1`
+incr_step
 
 # Build config file from template
 printf "\033[32m ${step}. Building configuration file ...\033[0m"
@@ -401,35 +450,139 @@ ${sudo_cmd} chmod 644 ${agent_conf_file} && \
 ${sudo_cmd} chown nginx ${agent_conf_file} > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
-    printf "\033[32m done.\033[0m\n\n"
+    printf "\033[32m done.\033[0m\n"
 else
     printf "\033[31m failed.\033[0m\n\n"
     exit 1
 fi
 
-step=`expr $step + 1`
+incr_step
 
-# Check if init.d script exists
-if [ ! -x /etc/init.d/amplify-agent ]; then
-    printf "\033[31m Error: /etc/init.d/amplify-agent not found!\033[0m\n\n"
-    exit 1
+# Detect the agent's euid
+detect_amplify_user
+
+test -n "${amplify_user}" && \
+amplify_euid=`id -u ${amplify_user}`
+
+if [ $? -ne 0 ]; then
+    printf "\n"
+    printf "\033[31m Something went wrong when detecting agent's user id.\033[0m\n"
+    errors=`expr $errors + 1`
 fi
 
+# Check is sudo can be used for tests
+if [ "${sudo_found}" = "no" ]; then
+    printf "\n"
+    printf "\033[31m Agent capabilities tests will not be performed - sudo not found.\033[0m\n"
+    errors=`expr $errors + 1`
+fi
+
+# Check agent capabilities
+if [ "${errors}" -eq 0 ]; then
+    # Check if the agent is able to use ps(1)
+    printf "\033[32m ${step}. Checking if the euid ${amplify_euid}(${amplify_user}) can find root processes ...\033[0m"
+
+    sudo -u ${amplify_user} /bin/sh -c "ps xao user,pid,ppid,command" 2>&1 | grep "^root" >/dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+	printf "\033[32m ok.\033[0m\n"
+    else
+	printf "\033[31m agent won't be able to detect nginx - ps(1) is restricted!\033[0m\n"
+	errors=`expr $errors + 1`
+    fi
+
+    incr_step
+
+    printf "\033[32m ${step}. Checking if the euid ${amplify_euid}(${amplify_user}) can access I/O counters ...\033[0m"
+
+    sudo -u ${amplify_user} /bin/sh -c 'cat /proc/$$/io' >/dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+	printf "\033[32m ok.\033[0m\n"
+    else
+	printf "\033[31m agent won't be able to collect I/O counters for nginx - /proc/<pid>/io is restricted!\033[0m\n"
+	errors=`expr $errors + 1`
+    fi
+
+    incr_step
+fi
+
+# Check nginx.conf for stub_status
+if [ -f "${nginx_conf_file}" ]; then
+    nginx_conf_dir=`echo ${nginx_conf_file} | sed 's/^\(.*\)\/[^/]*/\1/'`
+
+    if [ -d "${nginx_conf_dir}" ]; then
+	printf "\033[32m ${step}. Checking if stub_status is configured ...\033[0m"
+
+	if grep -R "stub_status" ${nginx_conf_dir}/* > /dev/null 2>&1; then
+	    printf "\033[32m ok.\033[0m\n"
+	else
+	    printf "\033[31m no stub_status in nginx config, please check\033[0m https://git.io/vKTpJ\n"
+	    errors=`expr $errors + 1`
+	fi
+
+	incr_step
+    fi
+fi
+
+# Test connectivity to receiver
+if [ -n "${downloader}" ]; then
+    printf "\033[32m ${step}. Checking connectivity to the receiver ...\033[0m"
+
+    if ${downloader} ${api_url} | grep 'pong' >/dev/null 2>&1; then
+	printf "\033[32m ok.\033[0m\n"
+    else
+	printf "\033[31m failed to connect to the receiver! (check\033[0m https://git.io/vKk0I)\n"
+	errors=`expr $errors + 1`
+    fi
+
+    incr_step
+fi
+
+# Check system time
+printf "\033[32m ${step}. Checking system time ...\033[0m"
+if command -V ntpdate > /dev/null 2>&1; then
+    ntp_offset=`ntpdate -4qu ${public_ntp} 2>&1 | grep -i 'ntpdate.*offset' | \
+		sed 's/.*offset [-]*\([.0-9][.0-9]*\) .*/\1/'`
+
+    test -z "${ntp_offset}" && \
+    ntp_offset=0
+
+    check_offset=`python -c "print (int)(${ntp_offset} < 5)" 2>&1`
+
+    if [ "${check_offset}" -eq 1 ]; then
+	printf "\033[32m ok.\033[0m\n"
+    else
+	printf "\033[31m offset > 5s - please adjust the system time using ntpdate(8) !\033[0m\n"
+	errors=`expr $errors + 1`
+    fi
+else
+    printf "\033[31m can't check system time - no ntpdate(8) installed!\033[0m\n"
+    errors=`expr $errors + 1`
+fi
+
+incr_step
+
+printf "\n"
+
 # Finalize install
-printf "\033[32m OK, it looks like everything is ready.\033[0m\n\n"
+if [ "$errors" -eq 0 ]; then
+    printf "\033[32m OK, everything went just fine!\033[0m\n\n"
+else
+    printf "\033[31m A few checks have failed - please check the warnings above!\033[0m\n\n"
+fi
 
-printf "\033[32m To start and stop the agent type:\033[0m\n\n"
-printf "\033[33m     # ${sudo_cmd}service amplify-agent start\033[0m\n"
-printf "\033[33m     # ${sudo_cmd}service amplify-agent stop\033[0m\n\n"
+printf "\033[32m To start and stop the Amplify Agent type:\033[0m\n\n"
+printf "     \033[7m${sudo_cmd}service amplify-agent { start | stop }\033[0m\n\n"
 
-printf "\033[32m Agent logs can be found in:\033[0m\n"
-printf "\033[33m     /var/log/amplify-agent/agent.log\033[0m\n\n"
+printf "\033[32m Amplify Agent log can be found here:\033[0m\n"
+printf "     /var/log/amplify-agent/agent.log\n\n"
 
-printf "\033[32m Please find the documentation here:\033[0m\n"
-printf "\033[33m     https://github.com/nginxinc/nginx-amplify-doc\033[0m\n\n"
+printf "\033[32m After the agent is launched, it might take up to 1 minute this system to appear\033[0m\n"
+printf "\033[32m in the Amplify user interface.\033[0m\n\n"
 
-printf "\033[32m After the agent is launched, it might take up to 1 minute\033[0m\n"
-printf "\033[32m for this system to appear in the Amplify user interface.\033[0m\n\n"
+printf "\033[32m PLEASE CHECK THE DOCUMENTATION HERE:\033[0m\n"
+printf "     https://github.com/nginxinc/nginx-amplify-doc\n\n"
 
 # Check for an older version of the agent running
 if command -V pgrep > /dev/null 2>&1; then
