@@ -464,16 +464,16 @@ detect_amplify_user
 test -n "${amplify_user}" && \
 amplify_euid=`id -u ${amplify_user}`
 
-if [ $? -ne 0 ]; then
+if [ $? -eq 0 ]; then
+    # Check is sudo can be used for tests
+    if [ "${sudo_found}" = "no" ]; then
+	printf "\n"
+	printf "\033[31m Agent capabilities tests will not be performed - sudo not found.\033[0m\n\n"
+	errors=`expr $errors + 1`
+    fi
+else
     printf "\n"
-    printf "\033[31m Something went wrong when detecting agent's user id.\033[0m\n"
-    errors=`expr $errors + 1`
-fi
-
-# Check is sudo can be used for tests
-if [ "${sudo_found}" = "no" ]; then
-    printf "\n"
-    printf "\033[31m Agent capabilities tests will not be performed - sudo not found.\033[0m\n"
+    printf "\033[31m Something went wrong when detecting agent's user id.\033[0m\n\n"
     errors=`expr $errors + 1`
 fi
 
@@ -542,7 +542,7 @@ fi
 # Check system time
 printf "\033[32m ${step}. Checking system time ...\033[0m"
 if command -V ntpdate > /dev/null 2>&1; then
-    ntp_offset=`ntpdate -4qu ${public_ntp} 2>&1 | grep -i 'ntpdate.*offset' | \
+    ntp_offset=`ntpdate -4qu ${public_ntp} 2>&1 < /dev/null | grep -i 'ntpdate.*offset' | \
 		sed 's/.*offset [-]*\([.0-9][.0-9]*\) .*/\1/'`
 
     test -z "${ntp_offset}" && \
@@ -569,7 +569,7 @@ printf "\n"
 if [ "$errors" -eq 0 ]; then
     printf "\033[32m OK, everything went just fine!\033[0m\n\n"
 else
-    printf "\033[31m A few checks have failed - please check the warnings above!\033[0m\n\n"
+    printf "\033[31m A few checks have failed - please read the warnings above!\033[0m\n\n"
 fi
 
 printf "\033[32m To start and stop the Amplify Agent type:\033[0m\n\n"
