@@ -469,7 +469,7 @@ if [ $? -eq 0 ]; then
     printf "\033[32m ${step}. Checking if sudo -u ${amplify_user} can be used for tests ...\033[0m"
 
     if [ "${sudo_found}" = "yes" ]; then
-	sudo_output=`sudo -u ${amplify_user} /bin/sh -c "id -un" 2>&1`
+	sudo_output=`sudo -u ${amplify_user} /bin/sh -c "id -un" 2>/dev/null`
 
 	if [ "${sudo_output}" = "${amplify_user}" ]; then
 	    printf "\033[32m done.\033[0m\n"
@@ -615,6 +615,7 @@ ${sudo_cmd} service amplify-agent start > /dev/null 2>&1 < /dev/null
 if [ $? -eq 0 ]; then
     printf "\033[32m All done.\033[0m\n\n"
 else
+    printf "\n"
     printf "\033[31m Couldn't start the agent, please check /var/log/amplify-agent/agent.log\033[0m\n\n"
     exit 1
 fi
