@@ -347,7 +347,7 @@ command -V python2.7 > /dev/null 2>&1 && python_27='yes' || python_27='no'
 command -V python2.6 > /dev/null 2>&1 && python_26='yes' || python_26='no'
 
 if [ "$python_exists" = "no" ]; then
-    printf "\033[31m python is required, but couldn't be found.\033[0m\n\n"
+    printf "\033[31m python 2.6 or 2.7 is required, but could not be found.\033[0m\n\n"
     exit 1
 fi
 
