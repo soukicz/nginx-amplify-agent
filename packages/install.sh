@@ -466,14 +466,26 @@ amplify_euid=`id -u ${amplify_user}`
 
 if [ $? -eq 0 ]; then
     # Check is sudo can be used for tests
-    if [ "${sudo_found}" = "no" ]; then
-	printf "\n"
-	printf "\033[31m Agent capabilities tests will not be performed - sudo not found.\033[0m\n\n"
+    printf "\033[32m ${step}. Checking if sudo -u ${amplify_user} can be used for tests ...\033[0m"
+
+    if [ "${sudo_found}" = "yes" ]; then
+	sudo_output=`sudo -u ${amplify_user} /bin/sh -c "id -un" 2>&1`
+
+	if [ "${sudo_output}" = "${amplify_user}" ]; then
+	    printf "\033[32m done.\033[0m\n"
+	else
+	    printf "\033[31m failed. (${sudo_output} != ${amplify_user})\033[0m\n"
+	    errors=`expr $errors + 1`
+	fi
+    else
+	printf "\033[31m failed - sudo not found.\033[0m\n"
 	errors=`expr $errors + 1`
     fi
+
+    incr_step
 else
     printf "\n"
-    printf "\033[31m Something went wrong when detecting agent's user id.\033[0m\n\n"
+    printf "\033[31m Something went wrong when detecting agent's user id, skipping some tests.\033[0m\n\n"
     errors=`expr $errors + 1`
 fi
 
