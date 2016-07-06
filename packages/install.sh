@@ -352,7 +352,7 @@ if [ "$python_exists" = "no" ]; then
 fi
 
 if [ "$python_27" = "no" -a "$python_26" = "no" ]; then
-    printf "\033[31m python is too old, require version >= 2.6.\033[0m\n\n"
+    printf "\033[31m python 2.6 or 2.7 is required, older or newer versions aren't supported.\033[0m\n\n"
     exit 1
 fi
 
