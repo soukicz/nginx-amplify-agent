@@ -29,6 +29,7 @@ class ContainerMetaCollector(CommonSystemMetaCollector):
         meta.update({
             'imagename': self.object.imagename,
             'container_type': context.container_type or 'None',
+            'uname': None,
             'network': {
                 'interfaces': [],
                 'default': None
@@ -36,7 +37,8 @@ class ContainerMetaCollector(CommonSystemMetaCollector):
         })
 
         for method in (
-                self.network,
+            self.uname,
+            self.network,
         ):
             try:
                 method(meta)
@@ -46,6 +48,15 @@ class ContainerMetaCollector(CommonSystemMetaCollector):
                 context.log.debug('additional info:', exc_info=True)
 
         self.object.metad.meta(meta)
+
+    @staticmethod
+    def uname(meta):
+        """
+        Collects uname for the container, without a hostname
+        :param meta: {} of meta
+        """
+        uname_out, _ = subp.call('uname -s -r -v -m -p')
+        meta['uname'] = uname_out.pop(0)
 
     @staticmethod
     def network(meta):

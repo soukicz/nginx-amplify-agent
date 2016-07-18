@@ -20,7 +20,7 @@ if [ -z "$2" ]; then
 else
     # Check for an older version of the agent running
     if command -V pgrep > /dev/null 2>&1; then
-        agent_pid=`pgrep amplify-agent`
+        agent_pid=`pgrep amplify-agent || true`
     else
         agent_pid=`ps aux | grep -i '[a]mplify-agent' | awk '{print $2}'`
     fi

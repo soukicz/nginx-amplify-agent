@@ -14,10 +14,13 @@ from amplify.agent.objects.nginx.binary import get_prefix_and_conf_path
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
+
+
+LAUNCHERS = ['supervisord', 'supervisorctl']
 
 
 class NginxManager(ObjectManager):
@@ -181,10 +184,8 @@ class NginxManager(ObjectManager):
             context.log.debug('additional info:', exc_info=True)
             return []
 
-        # calculate total amount of nginx master processes
-        # if no masters - return
-        masters_amount = len(filter(lambda x: 'nginx: master process' in x, ps))
-        if masters_amount == 0:
+        # return an empty list if there are no master processes
+        if not any('nginx: master process' in line for line in ps):
             context.log.debug('nginx masters amount is zero')
             return []
 
@@ -202,8 +203,16 @@ class NginxManager(ObjectManager):
 
                 pid, ppid, cmd = int(gwe.group('pid')), int(gwe.group('ppid')), gwe.group('cmd')
 
-                # match daemonized master and skip the other stuff
-                if 'nginx: master process' in cmd and ppid == 1:
+                # match nginx master process
+                if 'nginx: master process' in cmd:
+
+                    # if ppid isn't 1, then the master process must have been started with a launcher
+                    if ppid != 1:
+                        out, err = subp.call('ps o command %d' % ppid)
+                        parent_command = out[1] # take the second line because the first is a header
+                        if not any(launcher in parent_command for launcher in LAUNCHERS):
+                            continue
+
                     # get path to binary, prefix and conf_path
                     try:
                         bin_path, prefix, conf_path, version = get_prefix_and_conf_path(cmd)
@@ -214,28 +223,19 @@ class NginxManager(ObjectManager):
                         # calculate local id
                         local_id = hashlib.sha256('%s_%s_%s' % (bin_path, conf_path, prefix)).hexdigest()
 
-                        if pid in masters:
-                            masters[pid].update(
-                                dict(
-                                    version=version,
-                                    bin_path=bin_path,
-                                    conf_path=conf_path,
-                                    prefix=prefix,
-                                    pid=pid,
-                                    local_id=local_id
-                                )
-                            )
-                        else:
-                            masters[pid] = dict(
-                                version=version,
-                                bin_path=bin_path,
-                                conf_path=conf_path,
-                                prefix=prefix,
-                                pid=pid,
-                                local_id=local_id,
-                                workers=[]
-                            )
-                # match worker
+                        if pid not in masters:
+                            masters[pid] = {'workers': []}
+
+                        masters[pid].update({
+                            'version': version,
+                            'bin_path': bin_path,
+                            'conf_path': conf_path,
+                            'prefix': prefix,
+                            'pid': pid,
+                            'local_id': local_id
+                        })
+
+                # match worker process
                 elif 'nginx: worker process' in cmd:
                     if ppid in masters:
                         masters[ppid]['workers'].append(pid)

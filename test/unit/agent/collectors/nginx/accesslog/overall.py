@@ -267,9 +267,7 @@ class LogsOverallTestCase(NginxCollectorTestCase):
 
     def test_variables_with_numbers(self):
         """
-        Account for nginx variables with numbers in them.
-
-        https://jira.nginx.com/browse/NAAS-1544
+        Account for nginx variables with numbers in them
         """
         log_format = '$remote_addr [$time_local] $status $geoip_country_code ' + \
                      '$geoip_country_code3 "$geoip_country_name"'

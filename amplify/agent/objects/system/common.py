@@ -25,4 +25,4 @@ class CommonSystemObject(AbstractObject):
 
     @property
     def definition(self):
-        return None
+        return {}

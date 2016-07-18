@@ -26,10 +26,12 @@ class AbstractCollector(object):
     def __init__(self, object=None, interval=None):
         self.object = object
         self.interval = interval
-        self.previous_values = defaultdict(dict)  # for deltas
-        self.current_values = defaultdict(int)  # for aggregating
-        self.current_stamps = defaultdict(time.time)
-        self.current_peer_count = 0
+        self.previous_counters = defaultdict(dict)  # for deltas
+        self.current_counters = defaultdict(int)  # for aggregating
+        self.current_latest = defaultdict(int)
+
+        # stamp store organized by type - metric_name - stamp
+        self.current_stamps = defaultdict(lambda: defaultdict(time.time))
 
     def run(self):
         """
@@ -93,9 +95,9 @@ class AbstractCollector(object):
         Increment counter method that takes the "current_values" dictionary of metric name - value pairs increments
         statsd appropriately based on previous values.
         """
-        for metric_name, value in self.current_values.iteritems():
-            prev_stamp, prev_value = self.previous_values.get(metric_name, (None, None))
-            stamp, value = self.current_stamps[metric_name], self.current_values[metric_name]
+        for metric_name, value in self.current_counters.iteritems():
+            prev_stamp, prev_value = self.previous_counters.get(metric_name, (None, None))
+            stamp, value = self.current_stamps['counters'][metric_name], self.current_counters[metric_name]
 
             if isinstance(prev_value, (int, float)) and prev_stamp:
                 value_delta = value - prev_value
@@ -104,11 +106,12 @@ class AbstractCollector(object):
                     self.object.statsd.incr(metric_name, value_delta, stamp=stamp)
 
             # Re-base the calculation for next collect
-            self.previous_values[metric_name] = (stamp, value)
+            self.previous_counters[metric_name] = (stamp, value)
 
         # reset counter stores
-        self.current_values = defaultdict(int)
-        self.current_stamps = defaultdict(time.time)
+        self.current_counters = defaultdict(int)
+        if self.current_stamps['counters']:
+            del self.current_stamps['counters']
 
     def aggregate_counters(self, counted_vars, stamp=None):
         """
@@ -118,14 +121,31 @@ class AbstractCollector(object):
         :param stamp: Int Timestamp of Plus collect
         """
         for metric_name, value in counted_vars.iteritems():
-            self.current_values[metric_name] += value
+            self.current_counters[metric_name] += value
             if stamp:
-                self.current_stamps[metric_name] = stamp
+                self.current_stamps['counters'][metric_name] = stamp
 
-    def set_latest_peer_count(self, stamp=None):
+    def finalize_latest(self):
         """
-        Sets the latest upstream peer count metric then returns the collector's count to 0
+        Go through stored latest variables and send them to the object statsd.
         """
-        count = self.current_peer_count
-        self.object.statsd.latest('plus.upstream.peer.count', count, stamp)
-        self.current_peer_count = 0
+        for metric_name, value in self.current_latest.iteritems():
+            stamp = self.current_stamps['latest'][metric_name]
+            self.object.statsd.latest(metric_name, value, stamp)
+
+        # reset latest store
+        self.current_latest = defaultdict(int)
+        if self.current_stamps['latest']:
+            del self.current_stamps['latest']
+
+    def aggregate_latest(self, latest_vars, stamp=None):
+        """
+        Aggregate several latest metrics from multiple places and store the final value in a metric_name-value store.
+
+        :param latest_vars: Dict Metric_name - Value dict
+        :param stamp: Int Timestamp of collect
+        """
+        for metric_name in latest_vars:
+            self.current_latest[metric_name] += 1
+            if stamp:
+                self.current_stamps['latest'][metric_name] = stamp

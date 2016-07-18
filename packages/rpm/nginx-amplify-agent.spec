@@ -99,7 +99,7 @@ elif [ $1 -eq 2 ] ; then
 
     # Check for an older version of the agent running
     if command -V pgrep > /dev/null 2>&1; then
-        agent_pid=`pgrep amplify-agent`
+        agent_pid=`pgrep amplify-agent || true`
     else
         agent_pid=`ps aux | grep -i '[a]mplify-agent' | awk '{print $2}'`
     fi
@@ -138,6 +138,10 @@ fi
 
 
 %changelog
+* Mon Jul 18 2016 Mike Belov <dedm@nginx.com> 0.36-1
+- 0.36-1
+- Bug fixes
+
 * Thu Jun 29 2016 Mike Belov <dedm@nginx.com> 0.35-1
 - 0.35-1
 - New metrics for NGINX+

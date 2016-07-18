@@ -1,3 +1,9 @@
+nginx-amplify-agent (0.36-1) unstable; urgency=low
+
+  * Bug fixes
+
+ -- Mike Belov <dedm@nginx.com>  Mon, 18 Jul 2016 10:00:00 -0800
+
 nginx-amplify-agent (0.35-1) unstable; urgency=low
 
   * New metrics for NGINX+

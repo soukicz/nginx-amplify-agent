@@ -35,11 +35,14 @@ RUN apt-get install -y python python-dev python-distribute
 RUN wget --no-check-certificate https://bootstrap.pypa.io/ez_setup.py -O - | python
 RUN easy_install pip
 
+# Install Supervisor
+RUN easy_install supervisor
+
 # Copy the application folder inside the container
 ADD . /amplify
 
 # Get pip to download and install requirements:
-RUN pip install pytest pytest-xdist pyhamcrest requests_mock rstr==2.2.3 greenlet==0.4.9 gevent==1.0.2 lockfile==0.11.0 netaddr==0.7.18 netifaces==0.10.4 psutil==4.0.0 requests==2.8.1 ujson==1.33 python-daemon==2.0.6 pyparsing==2.0.1 setproctitle==1.1.9
+RUN pip install pytest pytest-xdist pyhamcrest requests_mock rstr==2.2.3 greenlet==0.4.9 gevent==1.0.2 lockfile==0.11.0 netaddr==0.7.18 netifaces==0.10.4 psutil==4.0.0 requests==2.10.0 ujson==1.33 python-daemon==2.0.6 pyparsing==2.0.1 setproctitle==1.1.10
 
 ENV AMPLIFY_ENVIRONMENT testing
 ENV PYTHONPATH /amplify
@@ -51,6 +54,7 @@ WORKDIR /amplify
 ADD nginx.conf /etc/nginx/nginx.conf
 ADD nginx2.conf /etc/nginx/nginx2.conf
 ADD nginx_bad_status.conf /etc/nginx/nginx_bad_status.conf
+ADD supervisord.conf /etc/supervisord.conf
 
 # add ssl
 ADD amplify-agent-test.crt /etc/nginx/certs.d/amplify-agent-test.crt

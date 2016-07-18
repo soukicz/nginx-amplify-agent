@@ -92,8 +92,13 @@ def collect_upstream_queue(collector, data, stamp):
         collector.aggregate_counters(copy.deepcopy(counted_vars), stamp=stamp)
 
 
-def incr_upstream_peer_count(collector, data, stamp):
-    collector.current_peer_count += 1
+def collect_upstream_peer_count(collector, data, stamp):
+    latest_vars = [
+        'plus.upstream.peer.count'
+    ]
+
+    if data['state'].lower() == 'up':
+        collector.aggregate_latest(latest_vars, stamp=stamp)
 
 
 UPSTREAM_COLLECT_INDEX = [
@@ -106,5 +111,5 @@ UPSTREAM_COLLECT_INDEX = [
     collect_upstream_fails,
     collect_upstream_health_checks,
     collect_upstream_queue,
-    incr_upstream_peer_count
+    collect_upstream_peer_count
 ]

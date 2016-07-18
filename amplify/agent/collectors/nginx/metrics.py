@@ -214,13 +214,13 @@ class CommonNginxMetricsCollector(AbstractCollector):
         }
         for metric_name, stub_name in counted_vars.iteritems():
             stamp, value = stub_time, stub[stub_name]
-            prev_stamp, prev_value = self.previous_values.get(metric_name, (None, None))
+            prev_stamp, prev_value = self.previous_counters.get(metric_name, (None, None))
 
             if isinstance(prev_value, (int, float)) and prev_stamp and prev_stamp != stamp:
                 value_delta = value - prev_value
                 self.object.statsd.incr(metric_name, value_delta)
 
-            self.previous_values[metric_name] = [stamp, value]
+            self.previous_counters[metric_name] = [stamp, value]
 
     def plus_status(self):
         """
@@ -285,12 +285,17 @@ class CommonNginxMetricsCollector(AbstractCollector):
         # Upstreams
         upstreams = status.get('upstreams', {})
         for upstream in upstreams.values():
-            for peer in upstream['peers']:
+            # workaround for supporting old N+ format
+            # http://nginx.org/en/docs/http/ngx_http_status_module.html#compatibility
+            peers = upstream['peers'] if 'peers' in upstream else upstream
+
+            for peer in peers:
                 for method in UPSTREAM_COLLECT_INDEX:
                     method(self, peer, stamp)
 
         self.increment_counters()
-        self.set_latest_peer_count()
+        self.finalize_latest()
+
 
 class NginxMetricsCollector(CommonNginxMetricsCollector):
 
@@ -377,11 +382,11 @@ class NginxMetricsCollector(CommonNginxMetricsCollector):
 
         # get deltas and store metrics
         for metric_name, value in {'nginx.workers.io.kbs_r': read, 'nginx.workers.io.kbs_w': write}.iteritems():
-            prev_stamp, prev_value = self.previous_values.get(metric_name, (None, None))
+            prev_stamp, prev_value = self.previous_counters.get(metric_name, (None, None))
             if isinstance(prev_value, (int, float)) and prev_stamp and prev_stamp != current_stamp:
                 value_delta = value - prev_value
                 self.object.statsd.incr(metric_name, value_delta)
-            self.previous_values[metric_name] = (current_stamp, value)
+            self.previous_counters[metric_name] = (current_stamp, value)
 
 
 class ContainerNginxMetricsCollector(CommonNginxMetricsCollector):

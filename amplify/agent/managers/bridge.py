@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import gc
-import copy
+import time
 from collections import deque
 
 from amplify.agent.common.context import context
+from amplify.agent.common.util.backoff import exponential_delay
 from amplify.agent.managers.abstract import AbstractManager
 
 
@@ -28,6 +29,10 @@ class Bridge(AbstractManager):
 
         self.payload = {}
         self.first_run = True
+
+        self.last_http_attempt = 0
+        self.http_fail_count = 0
+        self.http_delay = 0
 
         # Instantiate payload with appropriate keys and buckets.
         self._reset_payload()
@@ -59,7 +64,7 @@ class Bridge(AbstractManager):
             self.payload['metrics'].append(flush_data)
         self._send_payload()
 
-    def flush_all(self):
+    def flush_all(self, force=False):
         """
         Flushes all data
         """
@@ -76,7 +81,6 @@ class Bridge(AbstractManager):
             flush_data = self._flush_meta()
             if flush_data:
                 self.payload['meta'].append(flush_data)
-                self.first_run = False
         else:
             for client_type in self.payload.keys():
                 if client_type in clients:
@@ -84,7 +88,9 @@ class Bridge(AbstractManager):
                     if flush_data:
                         self.payload[client_type].append(flush_data)
 
-        self._send_payload()
+        now = time.time()
+        if force or now >= (self.last_http_attempt + self.interval + self.http_delay):
+            self._send_payload()
 
     def _send_payload(self):
         """
@@ -102,15 +108,30 @@ class Bridge(AbstractManager):
 
         # Send payload to backend.
         try:
+            self.last_http_attempt = time.time()
+
             self._pre_process_payload()  # Convert deques to lists for encoding
             context.http_client.post('update/', data=self.payload)
             context.default_log.debug(self.payload)
-            self._reset_payload()  # Clear payload after successful send
+            self._reset_payload()  # Clear payload after successful
+
+            if self.first_run:
+                self.first_run = False  # Set first_run to False after first successful send
+
+            if self.http_delay:
+                self.http_fail_count = 0
+                self.http_delay = 0  # Reset HTTP delay on success
+                context.log.debug('successful update, reset http delay')
         except Exception as e:
+            self._post_process_payload()  # Convert lists to deques since send failed
+
+            self.http_fail_count += 1
+            self.http_delay = exponential_delay(self.http_fail_count)
+            context.log.debug('http delay set to %s (fails: %s)' % (self.http_delay, self.http_fail_count))
+
             exception_name = e.__class__.__name__
             context.log.error('failed to push data due to %s' % exception_name)
             context.log.debug('additional info:', exc_info=True)
-            self._post_process_payload()  # Convert lists to deques since send failed
 
         context.log.debug(
             'finished flush_all; new payload stats: '

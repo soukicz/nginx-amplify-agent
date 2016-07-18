@@ -133,6 +133,9 @@ def _parse_arguments(argstring):
     :param argstring: configure string
     :return: {} of parsed string
     """
+    if argstring.startswith('configure arguments:'):
+        __, argstring = argstring.split(':', 1)
+
     arguments = {}
 
     current_key = None

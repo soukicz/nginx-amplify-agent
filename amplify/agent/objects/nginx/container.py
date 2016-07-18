@@ -26,7 +26,7 @@ class ContainerNginxObject(CommonNginxObject):
         if host.os_name() == 'linux':
             if host.linux_name() in ('ubuntu', 'debian'):
                 meta_collector_class = ContainerNginxDebianMetaCollector
-            elif host.linux_name() in ('centos',):
+            elif host.linux_name() in ('centos', 'rhel'):
                 meta_collector_class = ContainerNginxCentosMetaCollector
 
         # Collector setup...

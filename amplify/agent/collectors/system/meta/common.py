@@ -37,7 +37,6 @@ class CommonSystemMetaCollector(AbstractCollector):
         meta = {
             'type': self.object.type,
             'uuid': self.uuid,
-            'uname': None,
             'os-type': os_name(),
             'network': {
                 'interfaces': [],
@@ -56,11 +55,10 @@ class CommonSystemMetaCollector(AbstractCollector):
         }
 
         for method in (
-                self.uname,
-                self.disk_partitions,
-                self.etc_release,
-                self.proc_cpuinfo,
-                self.lscpu
+            self.disk_partitions,
+            self.etc_release,
+            self.proc_cpuinfo,
+            self.lscpu
         ):
             try:
                 method(meta)
@@ -70,12 +68,6 @@ class CommonSystemMetaCollector(AbstractCollector):
                 context.log.debug('additional info:', exc_info=True)
 
         return meta  # Top level returns a dictionary so additional processing can be done by specific objects.
-
-    @staticmethod
-    def uname(meta):
-        """ uname """
-        uname_out, _ = subp.call('uname -a')
-        meta['uname'] = uname_out.pop(0)
 
     @staticmethod
     def disk_partitions(meta):
@@ -165,6 +157,7 @@ class SystemMetaCollector(CommonSystemMetaCollector):
         meta.update({
             'boot': int(psutil.boot_time()) * 1000,
             'hostname': self.hostname,
+            'uname': None,
             'network': {
                 'interfaces': [],
                 'default': None
@@ -173,6 +166,7 @@ class SystemMetaCollector(CommonSystemMetaCollector):
         })
 
         for method in (
+            self.uname,
             self.network,
             self.ec2
         ):
@@ -184,6 +178,15 @@ class SystemMetaCollector(CommonSystemMetaCollector):
                 context.log.debug('additional info:', exc_info=True)
 
         self.object.metad.meta(meta)
+
+    @staticmethod
+    def uname(meta):
+        """
+        Collects the full uname for the OS
+        :param meta: {} of meta
+        """
+        uname_out, _ = subp.call('uname -a')
+        meta['uname'] = uname_out.pop(0)
 
     @staticmethod
     def network(meta):

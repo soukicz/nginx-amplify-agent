@@ -5,9 +5,11 @@ import time
 import gevent
 
 from threading import current_thread
+from random import randint
 
 from amplify.agent.common.cloud import CloudResponse
 from amplify.agent.common.context import context
+from amplify.agent.common.util.backoff import exponential_delay
 from amplify.agent.common.errors import AmplifyCriticalException
 from amplify.agent.common.util import loader
 from amplify.agent.common.util.threads import spawn
@@ -54,6 +56,8 @@ class Supervisor(object):
         self.bridge_object = None
         self.start_time = int(time.time())
         self.last_cloud_talk_time = 0
+        self.cloud_talk_fails = 0
+        self.cloud_talk_delay = 0
         self.is_running = True
 
     def init_object_managers(self):
@@ -117,8 +121,12 @@ class Supervisor(object):
 
                 try:
                     if context.objects.root_object:
-                        context.inc_action_id()
-                        self.talk_to_cloud(root_object=context.objects.root_object.definition)
+                        if context.objects.root_object.definition and context.objects.root_object.definition_healthy:
+                            context.inc_action_id()
+                            self.talk_to_cloud(root_object=context.objects.root_object.definition)
+                        else:
+                            context.log.error('Problem with root object definition, agent stopping')
+                            self.stop()
                     else:
                         pass
                         # context.default_log.debug('No root object defined during supervisor main run')
@@ -153,7 +161,11 @@ class Supervisor(object):
         :param initial: bool first run
         """
         now = int(time.time())
-        if not force and now <= self.last_cloud_talk_time + context.app_config['cloud']['talk_interval']:
+        if not force and now <= (
+            self.last_cloud_talk_time +
+            context.app_config['cloud']['talk_interval'] +
+            self.cloud_talk_delay
+        ):
             return
 
         # talk to cloud
@@ -164,7 +176,18 @@ class Supervisor(object):
             cloud_response = CloudResponse(
                 context.http_client.post('agent/', data=root_object)
             )
+
+            if self.cloud_talk_delay:
+                self.cloud_talk_fails = 0
+                self.cloud_talk_delay = 0
+                context.log.debug('successful cloud connect, reset cloud talk delay')
         except:
+            self.cloud_talk_fails += 1
+            self.cloud_talk_delay = exponential_delay(self.cloud_talk_fails)
+            context.log.debug(
+                'cloud talk delay set to %s (fails: %s)' % (self.cloud_talk_delay, self.cloud_talk_fails)
+            )
+
             context.log.error('could not connect to cloud', exc_info=True)
             raise AmplifyCriticalException()
 

@@ -50,7 +50,7 @@ class UpstreamCollector(PlusStatusCollector):
 
                 try:
                     self.increment_counters()
-                    self.set_latest_peer_count(stamp)
+                    self.finalize_latest()
                 except Exception as e:
                     exception_name = e.__class__.__name__
                     context.log.error(
@@ -94,5 +94,5 @@ class UpstreamCollector(PlusStatusCollector):
         upstream.collect_upstream_queue(self, data, stamp)
 
     def upstream_peer_count(self, data, stamp):
-        upstream.incr_upstream_peer_count(self, data, stamp)
+        upstream.collect_upstream_peer_count(self, data, stamp)
 

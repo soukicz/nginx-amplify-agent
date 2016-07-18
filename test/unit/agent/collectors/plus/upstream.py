@@ -362,21 +362,28 @@ class UpstreamCollectorTestCase(BaseTestCase):
              "selected": 1456184367000
         }
 
+        gauges = upstream.statsd.current['gauge']
+
         # drop data with two different peer counts into the plus_cache, then collect the data
         context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 1}}}, 3))
         context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 2}}}, 14))
         upstream_collector.collect()
-
-        # checks that the plus.upstream.peer.count metric works as intended
-        gauges = upstream.statsd.current['gauge']
         assert_that(gauges['plus.upstream.peer.count'], equal_to([(14, 2)]))
 
-        # drops data with three more peer counts into the plus_cache
+        # shows that the metric works even if the plus_cache data has been collected before
         context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 4}}}, 16))
         context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 2}}}, 20))
         context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 8}}}, 99))
         upstream_collector.collect()
-
-        # shows that the metric works even if the plus_cache data has been collected before
-        gauges = upstream.statsd.current['gauge']
         assert_that(gauges['plus.upstream.peer.count'], equal_to([(99, 8)]))
+
+        # shows that only peers with state == 'up' count towards upstream.peer.count
+        test_peer['state'] = 'down'
+        context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 5}}}, 110))
+        upstream_collector.collect()
+        assert_that(gauges['plus.upstream.peer.count'], equal_to([(99, 8)]))  # doesn't change because state is 'down'
+
+        test_peer['state'] = 'up'
+        context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 2}}}, 120))
+        upstream_collector.collect()
+        assert_that(gauges['plus.upstream.peer.count'], equal_to([(120, 2)]))

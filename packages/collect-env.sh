@@ -446,7 +446,7 @@ fi
 echo ""
 
 if [ -f /etc/resolv.conf ]; then
-    echo "===> /etc/resolve.conf is:"
+    echo "===> /etc/resolv.conf is:"
     cat /etc/resolv.conf
     echo ""
 fi

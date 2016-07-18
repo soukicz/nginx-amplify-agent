@@ -6,12 +6,13 @@ import re
 import socket
 import sys
 import uuid as python_uuid
-
 import psutil
-from amplify.agent.common.util import subp
 
+from amplify.agent.common.util import subp
+from amplify.agent.common.errors import AmplifySubprocessError
 from amplify.agent.common.context import context
 from amplify.agent.common.util.ec2 import AmazonEC2
+
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -120,9 +121,25 @@ def os_name():
 
 
 def linux_name():
-    lsb_out, _ = subp.call("lsb_release -i | awk '{print $3}'", check=False)
-    if len(lsb_out):
-        return lsb_out.pop(0).lower()
+    try:
+        out, err = subp.call('cat /etc/*-release')
+    except AmplifySubprocessError:
+        out, err = subp.call('uname -s')
+        return out[0].lower()
+
+    for line in out:
+        if line.startswith('ID='):
+            return line[3:].strip('"').lower()
+
+    full_output = '\n'.join(out).lower()
+    if 'oracle linux' in full_output:
+        return 'rhel'
+    elif 'red hat' in full_output:
+        return 'rhel'
+    elif 'centos' in full_output:
+        return 'centos'
+    else:
+        return 'linux'
 
 
 def is_deb():
@@ -193,7 +210,7 @@ def alive_interfaces():
                     state = state_match.group(1)
                     if interface_name == 'lo' or state == 'UP':
                         alive_interfaces.add(interface_name)
-                    elif state == 'UNKOWN':
+                    elif state == 'UNKNOWN':
                         # If state is 'UNKNOWN" (e.g. venet with OpenVZ) check to see if 'UP' is in bracket summary
                         bracket_match = re.match('.+<([\w,\,]+)>.+', first_line)
                         bracket = bracket_match.group(0)

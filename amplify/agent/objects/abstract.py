@@ -63,6 +63,14 @@ class AbstractObject(object):
         return {'id': self.id, 'type': self.type}
 
     @property
+    def definition_healthy(self):
+        check = {}
+        for k, v in self.definition.iteritems():
+            if v:
+                check[k] = v
+        return check == self.definition
+
+    @property
     def definition_hash(self):
         if not self.definition_hash_cache:
             definition_string = str(map(lambda x: u'%s:%s' % (x, self.definition[x]), sorted(self.definition.keys())))

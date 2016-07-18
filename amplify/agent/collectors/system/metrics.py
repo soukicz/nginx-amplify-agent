@@ -53,7 +53,7 @@ class SystemMetricsCollector(AbstractCollector):
     def container(self):
         """ send counter for container object """
         if self.object.type == 'container':
-            self.object.statsd.incr('amplify.agent.container.count')
+            self.object.statsd.latest('amplify.agent.container.count', 1)
 
     def agent_cpu(self):
         """ agent cpu times """
@@ -151,7 +151,7 @@ class SystemMetricsCollector(AbstractCollector):
 
             for method, description in simple_metrics.iteritems():
                 new_stamp, new_value = time.time(), getattr(io, method)
-                prev_stamp, prev_value = self.previous_values.get(disk, {}).get(method, (None, None))
+                prev_stamp, prev_value = self.previous_counters.get(disk, {}).get(method, (None, None))
 
                 if prev_stamp and new_value >= prev_value:
                     metric_name, value_divider, stat_func = description
@@ -164,11 +164,11 @@ class SystemMetricsCollector(AbstractCollector):
                     elif method == 'read_count':
                         complex_metrics['read_time'][1] = delta_value
 
-                self.previous_values[disk][method] = (new_stamp, new_value)
+                self.previous_counters[disk][method] = (new_stamp, new_value)
 
             for method, description in complex_metrics.iteritems():
                 new_stamp, new_value = time.time(), getattr(io, method)
-                prev_stamp, prev_value = self.previous_values.get(disk, {}).get(method, (None, None))
+                prev_stamp, prev_value = self.previous_counters.get(disk, {}).get(method, (None, None))
 
                 if isinstance(prev_value, (int, float)) and prev_stamp != new_stamp:
                     metric_name, value_divider, stat_func = description
@@ -179,7 +179,7 @@ class SystemMetricsCollector(AbstractCollector):
                     metric_full_name = metric_name if disk == '__all__' else '%s|%s' % (metric_name, disk)
                     stat_func(metric_full_name, delta_value)
 
-                self.previous_values[disk][method] = (new_stamp, new_value)
+                self.previous_counters[disk][method] = (new_stamp, new_value)
 
     def net_io_counters(self):
         """
@@ -205,7 +205,7 @@ class SystemMetricsCollector(AbstractCollector):
 
             for method, metric in metrics.iteritems():
                 new_stamp, new_value = time.time(), getattr(io, method)
-                prev_stamp, prev_value = self.previous_values.get(interface, {}).get(metric, (None, None))
+                prev_stamp, prev_value = self.previous_counters.get(interface, {}).get(metric, (None, None))
 
                 if prev_stamp and new_value >= prev_value:
                     delta_value = new_value - prev_value
@@ -216,7 +216,7 @@ class SystemMetricsCollector(AbstractCollector):
                     if not interface.startswith('lo'):
                         totals[metric] += delta_value
 
-                self.previous_values[interface][metric] = (new_stamp, new_value)
+                self.previous_counters[interface][metric] = (new_stamp, new_value)
 
         # send total values
         for metric, value in totals.iteritems():
@@ -240,9 +240,9 @@ class SystemMetricsCollector(AbstractCollector):
         gwe = re.match('\s*(\d+)\s*', netstat_out.pop(0))
 
         new_value = int(gwe.group(1)) if gwe else 0
-        prev_stamp, prev_value = self.previous_values.get('system.net.listen_overflows', (None, None))
+        prev_stamp, prev_value = self.previous_counters.get('system.net.listen_overflows', (None, None))
         if prev_stamp:
             delta_value = new_value - prev_value
             self.object.statsd.incr('system.net.listen_overflows', delta_value)
 
-        self.previous_values['system.net.listen_overflows'] = (new_stamp, new_value)
+        self.previous_counters['system.net.listen_overflows'] = (new_stamp, new_value)
