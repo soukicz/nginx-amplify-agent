@@ -41,3 +41,19 @@ class CloudResponse(object):
         self.objects = []
         for raw_object_data in response.get('objects', []):
             self.objects.append(ObjectData(**raw_object_data))
+
+
+class HTTP503Error(object):
+    """
+    Back pressure status handler.
+    """
+
+    def __init__(self, http_error):
+        """
+        Init
+
+        :param http_error: HTTPError object from requests.exceptions
+        """
+        self.code = 503
+        self.text = http_error.response.text or '0'
+        self.delay = int(float(self.text))

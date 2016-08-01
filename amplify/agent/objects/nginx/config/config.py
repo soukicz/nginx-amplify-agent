@@ -8,6 +8,7 @@ import rstr
 
 from amplify.agent.common.context import context
 from amplify.agent.common.util import subp
+from amplify.agent.common.util.glib import glib
 from amplify.agent.common.util.ssl import ssl_analysis
 from amplify.agent.objects.nginx.config.parser import NginxConfigParser
 
@@ -81,6 +82,9 @@ class NginxConfig(object):
 
         # try to locate and use default logs (PREFIX/logs/*)
         self.add_default_logs()
+
+        # Go through log files and apply exclude rules (log files are added during .__colect_data()
+        self._exclude_logs()
 
     def collect_structure(self, include_ssl_certs=False):
         """
@@ -370,3 +374,19 @@ class NginxConfig(object):
 
         end_time = time.time()
         return end_time - start_time
+
+    def _exclude_logs(self):
+        """
+        Iterate through log file stores and remove ones that match exclude rules.
+        """
+        # Take comma-separated string of pathname patterns and separate them into individual patterns
+        exclude_rules = context.app_config.get('nginx', {}).get('exclude_logs', '').split(',')
+
+        for rule in [x for x in exclude_rules if x]:  # skip potentially empty rules due to improper formatting
+            # access logs
+            for excluded_file in glib(self.access_logs.keys(), rule):
+                del self.access_logs[excluded_file]
+
+            # error logs
+            for excluded_file in glib(self.error_logs.keys(), rule):
+                del self.error_logs[excluded_file]

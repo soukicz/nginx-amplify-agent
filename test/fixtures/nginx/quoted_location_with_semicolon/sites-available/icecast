@@ -1,0 +1,23 @@
+server {
+    listen 8000;
+    access_log /var/log/nginx/ice.access.log;
+    error_log /var/log/nginx/ice.error.log;
+    client_header_buffer_size    1k;
+    large_client_header_buffers  8 8k;
+
+    location /pilot_lounge {
+        proxy_pass  http://127.0.0.1:8001;
+    }
+
+    location "/pilot_lounge/;" {    
+        return 444;
+    }
+
+    location / {
+#	return 444;
+#        if ($http_referer ~* (test.tk))
+#        {  return 444;   }
+        proxy_pass  http://127.0.0.1:8001;
+        include     proxy.conf;
+    }
+}

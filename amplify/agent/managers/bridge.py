@@ -2,8 +2,10 @@
 import gc
 import time
 from collections import deque
+from requests.exceptions import HTTPError
 
 from amplify.agent.common.context import context
+from amplify.agent.common.cloud import HTTP503Error
 from amplify.agent.common.util.backoff import exponential_delay
 from amplify.agent.managers.abstract import AbstractManager
 
@@ -89,7 +91,10 @@ class Bridge(AbstractManager):
                         self.payload[client_type].append(flush_data)
 
         now = time.time()
-        if force or now >= (self.last_http_attempt + self.interval + self.http_delay):
+        if force or (
+            now >= (self.last_http_attempt + self.interval + self.http_delay) and
+            now > context.backpressure_time
+        ):
             self._send_payload()
 
     def _send_payload(self):
@@ -125,9 +130,19 @@ class Bridge(AbstractManager):
         except Exception as e:
             self._post_process_payload()  # Convert lists to deques since send failed
 
-            self.http_fail_count += 1
-            self.http_delay = exponential_delay(self.http_fail_count)
-            context.log.debug('http delay set to %s (fails: %s)' % (self.http_delay, self.http_fail_count))
+            if isinstance(e, HTTPError) and e.response.status_code == 503:
+                backpressure_error = HTTP503Error(e)
+                context.backpressure_time = int(time.time() + backpressure_error.delay)
+                context.log.debug(
+                    'back pressure delay %s added (next talk: %s)' % (
+                        backpressure_error.delay,
+                        context.backpressure_time
+                    )
+                )
+            else:
+                self.http_fail_count += 1
+                self.http_delay = exponential_delay(self.http_fail_count)
+                context.log.debug('http delay set to %s (fails: %s)' % (self.http_delay, self.http_fail_count))
 
             exception_name = e.__class__.__name__
             context.log.error('failed to push data due to %s' % exception_name)

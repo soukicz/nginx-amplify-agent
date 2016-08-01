@@ -6,8 +6,9 @@ import gevent
 
 from threading import current_thread
 from random import randint
+from requests.exceptions import HTTPError
 
-from amplify.agent.common.cloud import CloudResponse
+from amplify.agent.common.cloud import CloudResponse, HTTP503Error
 from amplify.agent.common.context import context
 from amplify.agent.common.util.backoff import exponential_delay
 from amplify.agent.common.errors import AmplifyCriticalException
@@ -161,10 +162,13 @@ class Supervisor(object):
         :param initial: bool first run
         """
         now = int(time.time())
-        if not force and now <= (
-            self.last_cloud_talk_time +
-            context.app_config['cloud']['talk_interval'] +
-            self.cloud_talk_delay
+        if not force and (
+            now <= (
+                self.last_cloud_talk_time +
+                context.app_config['cloud']['talk_interval'] +
+                self.cloud_talk_delay
+            ) or
+            now < context.backpressure_time
         ):
             return
 
@@ -181,12 +185,22 @@ class Supervisor(object):
                 self.cloud_talk_fails = 0
                 self.cloud_talk_delay = 0
                 context.log.debug('successful cloud connect, reset cloud talk delay')
-        except:
-            self.cloud_talk_fails += 1
-            self.cloud_talk_delay = exponential_delay(self.cloud_talk_fails)
-            context.log.debug(
-                'cloud talk delay set to %s (fails: %s)' % (self.cloud_talk_delay, self.cloud_talk_fails)
-            )
+        except Exception as e:
+            if isinstance(e, HTTPError) and e.response.status_code == 503:
+                backpressure_error = HTTP503Error(e)
+                context.backpressure_time = int(time.time() + backpressure_error.delay)
+                context.log.debug(
+                    'back pressure delay %s added (next talk: %s)' % (
+                        backpressure_error.delay,
+                        context.backpressure_time
+                    )
+                )
+            else:
+                self.cloud_talk_fails += 1
+                self.cloud_talk_delay = exponential_delay(self.cloud_talk_fails)
+                context.log.debug(
+                    'cloud talk delay set to %s (fails: %s)' % (self.cloud_talk_delay, self.cloud_talk_fails)
+                )
 
             context.log.error('could not connect to cloud', exc_info=True)
             raise AmplifyCriticalException()

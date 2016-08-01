@@ -16,7 +16,7 @@ from amplify.agent.common.util.ec2 import AmazonEC2
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev"]
+__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Arie van Luttikhuizen"]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
@@ -124,8 +124,11 @@ def linux_name():
     try:
         out, err = subp.call('cat /etc/*-release')
     except AmplifySubprocessError:
-        out, err = subp.call('uname -s')
-        return out[0].lower()
+        try:
+            out, err = subp.call('uname -s')
+            return out[0].lower()
+        except AmplifySubprocessError:
+            return 'unix'
 
     for line in out:
         if line.startswith('ID='):

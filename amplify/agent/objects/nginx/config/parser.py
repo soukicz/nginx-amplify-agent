@@ -93,11 +93,12 @@ class NginxConfigParser(object):
     ) + Word(alphanums + '$_:%?"~<>\/-+.,*()[]"' + "'").setParseAction(set_line_number)
 
     # values
+    value_string = Regex(r'"([^"]|\s)*\"')  # string value repurposed from map types
     value_one = Regex(r'[^{};]*"[^\";]+"[^{};]*')
     value_two = Regex(r'[^{};]*\'[^\';]+\'')
     value_three = Regex(r'[^{};]+((\${[\d|\w]+(?=})})|[^{};])+')
     value_four = Regex(r'[^{};]+(?!${.+})')
-    value = (value_one | value_two | value_three | value_four).setParseAction(set_line_number)
+    value = (value_string | value_one | value_two | value_three | value_four).setParseAction(set_line_number)
     quotedValue = Regex(r'"[^;]+"|\'[^;]+\'').setParseAction(set_line_number)
     rewrite_value = CharsNotIn(";").setParseAction(set_line_number)
     any_value = CharsNotIn(";").setParseAction(set_line_number)
@@ -110,7 +111,7 @@ class NginxConfigParser(object):
 
     # map values
     map_value_one = Regex(r'\'([^\']|\s)*\'')
-    map_value_two = Regex(r'"([^"]|\s)*\"')
+    map_value_two = value_string
     map_value_three = Regex(r'((\\\s|[^{};\s])*)')
     map_value = (map_value_one | map_value_two | map_value_three).setParseAction(set_line_number)
 
@@ -194,7 +195,7 @@ class NginxConfigParser(object):
         left_brace +
         Group(
             ZeroOrMore(
-                 Group(add_header) |Group(log_format) | Group(lua_content) | Group(perl_set) |
+                 Group(add_header) | Group(log_format) | Group(lua_content) | Group(perl_set) |
                  Group(set) | Group(rewrite) | Group(alias) | Group(return_) |
                  Group(assignment) | Group(server_name) | Group(sub_filter) |
                  map_block | block
@@ -488,7 +489,8 @@ class NginxConfigParser(object):
         if result is None:
             result = {}
 
-        for file_index, rows in files.iteritems():
+        for file_index, rowsp in files.iteritems():
+            rows = rowsp[:]
             while len(rows):
                 row = rows.pop(0)
                 row_as_list = row.asList()

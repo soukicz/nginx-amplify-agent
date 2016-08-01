@@ -25,13 +25,13 @@ def collect_upstream_request(collector, data, stamp):
 def collect_upstream_header_time(collector, data, stamp):
     if 'header_time' in data:
         time_in_seconds = float(data['header_time']) / 1000
-        collector.object.statsd.timer('plus.upstream.header.time', float('%.3f' % time_in_seconds), stamp=stamp)
+        collector.object.statsd.timer('plus.upstream.header.time', float('%.3f' % time_in_seconds))
 
 
 def collect_upstream_response_time(collector, data, stamp):
     if 'response_time' in data:
         time_in_seconds = float(data['response_time']) / 1000
-        collector.object.statsd.timer('plus.upstream.response.time', float('%.3f' % time_in_seconds), stamp=stamp)
+        collector.object.statsd.timer('plus.upstream.response.time', float('%.3f' % time_in_seconds))
 
 
 def collect_upstream_responses(collector, data, stamp):

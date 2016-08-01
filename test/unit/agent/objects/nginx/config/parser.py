@@ -29,6 +29,7 @@ json_config = os.getcwd() + '/test/fixtures/nginx/custom/json.conf'
 ssl_simple_config = os.getcwd() + '/test/fixtures/nginx/ssl/simple/nginx.conf'
 sub_filter_config = os.getcwd() + '/test/fixtures/nginx/custom/sub_filter.conf'
 proxy_pass_config = os.getcwd() + '/test/fixtures/nginx/custom/proxy_pass.conf'
+quoted_location_with_semicolon = os.getcwd() + '/test/fixtures/nginx/quoted_location_with_semicolon/nginx.conf'
 
 
 class ParserTestCase(BaseTestCase):
@@ -371,3 +372,7 @@ class ParserTestCase(BaseTestCase):
         tree = cfg.simplify()
 
         assert_that(tree['http']['proxy_pass'], equal_to('$scheme://${scheme}site.com_backend'))
+
+    def test_quoted_location_with_semicolon(self):
+        cfg = NginxConfigParser(quoted_location_with_semicolon)
+        assert_that(calling(cfg.parse), not_(raises(TypeError)))

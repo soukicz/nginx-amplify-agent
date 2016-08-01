@@ -298,3 +298,166 @@ class MiscConfigTestCase(BaseTestCase):
         config.full_parse()
         new_checksum = config.checksum()
         assert_that(new_checksum, not_(equal_to(old_checksum)))
+
+
+class ExcludeConfigTestCase(BaseTestCase):
+    """
+    Tests that .full_parse() of NginxConfig type obeys context.app_config 'exclude_logs' parameter
+    """
+    def test_parse_simple_exclude_dir(self):
+        """Check that config.full_parse() obeys exclude_logs from app_config with directory ignore"""
+        context.app_config['nginx']['exclude_logs'] = '/var/log/nginx/'
+
+        config = NginxConfig(simple_config)
+        config.full_parse()
+
+        del context.app_config['nginx']['exclude_logs']
+
+        # error logs
+        assert_that(config.error_logs, has_length(0))
+
+        # access logs
+        assert_that(config.access_logs, has_length(0))
+
+        # log formats
+        assert_that(config.log_formats, has_length(1))
+        assert_that(config.log_formats, has_item('super_log_format'))
+        assert_that(
+            config.log_formats['super_log_format'],
+            equal_to(
+                '$remote_addr - $remote_user [$time_local] "$request" $status ' +
+                '$body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for" ' +
+                'rt="$request_time" ua="$upstream_addr" us="$upstream_status" ' +
+                'ut="$upstream_response_time" "$gzip_ratio"'
+            )
+        )
+
+        # stub status urls
+        assert_that(config.stub_status_urls, has_length(1))
+        assert_that(config.stub_status_urls[0], equal_to('127.0.0.1:81/basic_status'))
+
+        # status urls
+        assert_that(config.plus_status_external_urls, has_length(1))
+        assert_that(config.plus_status_external_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+        assert_that(config.plus_status_internal_urls, has_length(1))
+        assert_that(config.plus_status_internal_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+    def test_parse_simple_exclude_file(self):
+        """Check that config.full_parse() obeys exclude_logs from app_config with file ignore"""
+        context.app_config['nginx']['exclude_logs'] = '*.log'
+
+        config = NginxConfig(simple_config)
+        config.full_parse()
+
+        del context.app_config['nginx']['exclude_logs']
+
+        # error logs
+        assert_that(config.error_logs, has_length(0))
+
+        # access logs
+        assert_that(config.access_logs, has_length(0))
+
+        # log formats
+        assert_that(config.log_formats, has_length(1))
+        assert_that(config.log_formats, has_item('super_log_format'))
+        assert_that(
+            config.log_formats['super_log_format'],
+            equal_to(
+                '$remote_addr - $remote_user [$time_local] "$request" $status ' +
+                '$body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for" ' +
+                'rt="$request_time" ua="$upstream_addr" us="$upstream_status" ' +
+                'ut="$upstream_response_time" "$gzip_ratio"'
+            )
+        )
+
+        # stub status urls
+        assert_that(config.stub_status_urls, has_length(1))
+        assert_that(config.stub_status_urls[0], equal_to('127.0.0.1:81/basic_status'))
+
+        # status urls
+        assert_that(config.plus_status_external_urls, has_length(1))
+        assert_that(config.plus_status_external_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+        assert_that(config.plus_status_internal_urls, has_length(1))
+        assert_that(config.plus_status_internal_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+    def test_parse_simple_exclude_combined(self):
+        """Check that config.full_parse() obeys exclude_logs from app_config with combined ignore"""
+        context.app_config['nginx']['exclude_logs'] = '/var/log/nginx/*.log'
+
+        config = NginxConfig(simple_config)
+        config.full_parse()
+
+        del context.app_config['nginx']['exclude_logs']
+
+        # error logs
+        assert_that(config.error_logs, has_length(0))
+
+        # access logs
+        assert_that(config.access_logs, has_length(0))
+
+        # log formats
+        assert_that(config.log_formats, has_length(1))
+        assert_that(config.log_formats, has_item('super_log_format'))
+        assert_that(
+            config.log_formats['super_log_format'],
+            equal_to(
+                '$remote_addr - $remote_user [$time_local] "$request" $status ' +
+                '$body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for" ' +
+                'rt="$request_time" ua="$upstream_addr" us="$upstream_status" ' +
+                'ut="$upstream_response_time" "$gzip_ratio"'
+            )
+        )
+
+        # stub status urls
+        assert_that(config.stub_status_urls, has_length(1))
+        assert_that(config.stub_status_urls[0], equal_to('127.0.0.1:81/basic_status'))
+
+        # status urls
+        assert_that(config.plus_status_external_urls, has_length(1))
+        assert_that(config.plus_status_external_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+        assert_that(config.plus_status_internal_urls, has_length(1))
+        assert_that(config.plus_status_internal_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+    def test_parse_simple_exclude_multiple(self):
+        """Check that config.full_parse() obeys exclude_logs from app_config with multiple ignores"""
+        context.app_config['nginx']['exclude_logs'] = '/var/log/nginx/super*.log,error*'
+
+        config = NginxConfig(simple_config)
+        config.full_parse()
+
+        del context.app_config['nginx']['exclude_logs']
+
+        # error logs
+        assert_that(config.error_logs, has_length(0))
+
+        # access logs
+        assert_that(config.access_logs, has_length(1))
+        assert_that(config.access_logs, has_item('/var/log/nginx/access.log'))
+        assert_that(config.access_logs['/var/log/nginx/access.log'], equal_to('super_log_format'))
+
+        # log formats
+        assert_that(config.log_formats, has_length(1))
+        assert_that(config.log_formats, has_item('super_log_format'))
+        assert_that(
+            config.log_formats['super_log_format'],
+            equal_to(
+                '$remote_addr - $remote_user [$time_local] "$request" $status ' +
+                '$body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for" ' +
+                'rt="$request_time" ua="$upstream_addr" us="$upstream_status" ' +
+                'ut="$upstream_response_time" "$gzip_ratio"'
+            )
+        )
+
+        # stub status urls
+        assert_that(config.stub_status_urls, has_length(1))
+        assert_that(config.stub_status_urls[0], equal_to('127.0.0.1:81/basic_status'))
+
+        # status urls
+        assert_that(config.plus_status_external_urls, has_length(1))
+        assert_that(config.plus_status_external_urls[0], equal_to('127.0.0.1:81/plus_status'))
+
+        assert_that(config.plus_status_internal_urls, has_length(1))
+        assert_that(config.plus_status_internal_urls[0], equal_to('127.0.0.1:81/plus_status'))

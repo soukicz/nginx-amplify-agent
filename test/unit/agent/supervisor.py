@@ -7,6 +7,7 @@ from hamcrest import *
 
 from amplify.agent.common.context import context
 from amplify.agent.supervisor import Supervisor
+from amplify.agent.common.errors import AmplifyCriticalException
 from test.base import RealNginxTestCase, nginx_plus_test, nginx_oss_test
 from test.fixtures.defaults import DEFAULT_API_URL, DEFAULT_API_KEY
 
@@ -23,9 +24,11 @@ class SupervisorTestCase(RealNginxTestCase):
     def setup_method(self, method):
         super(SupervisorTestCase, self).setup_method(method)
         self.old_cloud_config = deepcopy(context.app_config.config)
+        self.old_backpressure_time = context.backpressure_time
 
     def teardown_method(self, method):
         context.app_config.config = self.old_cloud_config
+        context.backpressure_time = self.old_backpressure_time
         super(SupervisorTestCase, self).teardown_method(method)
 
     def test_talk_to_cloud(self):
@@ -56,6 +59,31 @@ class SupervisorTestCase(RealNginxTestCase):
             # check that object configs were also changed
             nginx_container = supervisor.object_managers['nginx']
             assert_that(nginx_container.object_configs, not_(equal_to(old_object_configs)))
+
+    def test_backpressure(self):
+        """
+        Checks that we catch and apply backpressure delay correctly from 503 status codes.
+        """
+        supervisor = Supervisor()
+
+        with requests_mock.mock() as m:
+            m.post(
+                '%s/%s/agent/' % (DEFAULT_API_URL, DEFAULT_API_KEY),
+                status_code=503,
+                text='60.0'
+            )
+
+            now = time.time()
+
+            # talk to get delay
+            try:
+                supervisor.talk_to_cloud(force=True)
+            except AmplifyCriticalException:
+                pass
+
+            # check that context.backpressure_time was changed
+            assert_that(context.backpressure_time, not_(equal_to(self.old_backpressure_time)))
+            assert_that(context.backpressure_time, greater_than_or_equal_to(int(now + 60.0)))
 
     def test_filters_unchanged(self):
         """

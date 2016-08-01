@@ -34,7 +34,7 @@ class Context(Singleton):
 
         self.set_pid()
 
-        self.version_major = 0.36
+        self.version_major = 0.37
         self.version_build = 1
         self.version = '%s-%s' % (self.version_major, self.version_build)
         self.environment = None
@@ -58,6 +58,8 @@ class Context(Singleton):
 
         self.setup_thread_id()
         self.setup_environment()
+
+        self.backpressure_time = 0
 
     def set_pid(self):
         self.pid = os.getpid()

@@ -387,3 +387,206 @@ class UpstreamCollectorTestCase(BaseTestCase):
         context.plus_cache.put('test_status', ({"upstreams": {"trac-backend": {"peers": [test_peer] * 2}}}, 120))
         upstream_collector.collect()
         assert_that(gauges['plus.upstream.peer.count'], equal_to([(120, 2)]))
+
+    def test_collect_complete(self):
+        upstream = NginxUpstreamObject(local_name='uploader', parent_local_id='nginx123', root_uuid='root123')
+        upstream.plus_status_internal_url_cache = 'test_status'
+
+        # Get the upstream collector
+        upstream_collector = upstream.collectors[-1]
+        assert_that(upstream_collector.last_collect, equal_to(None))
+
+        context.plus_cache.put('test_status', (
+            {
+                u'processes': {u'respawned': 0},
+                u'version': 6,
+                u'upstreams': {
+                    u'album_manager': {
+                        u'peers': [
+                            {
+                                u'received': 5993399,
+                                u'fails': 0,
+                                u'header_time': 36,
+                                u'weight': 1,
+                                u'unavail': 0,
+                                u'selected': 1468876152000,
+                                u'server': u'10.0.1.51:11873',
+                                u'state': u'up',
+                                u'health_checks': {
+                                    u'fails': 0,
+                                    u'checks': 0,
+                                    u'unhealthy': 0
+                                },
+                                u'sent': 155167,
+                                u'downtime': 0,
+                                u'active': 0,
+                                u'downstart': 0,
+                                u'requests': 854,
+                                u'backup': False,
+                                u'id': 1,
+                                u'response_time': 36,
+                                u'responses': {
+                                    u'5xx': 0,
+                                    u'2xx': 854,
+                                    u'4xx': 0,
+                                    u'3xx': 0,
+                                    u'1xx': 0,
+                                    u'total': 854
+                                }
+                            }
+                        ],
+                        u'keepalive': 0
+                    },
+                    u'user_manager': {
+                        u'peers': [
+                            {
+                                u'received': 121924,
+                                u'fails': 0,
+                                u'header_time': 86,
+                                u'weight': 1,
+                                u'unavail': 0,
+                                u'selected': 1468876152000,
+                                u'server': u'10.0.1.50:23438',
+                                u'state': u'up',
+                                u'health_checks': {
+                                    u'fails': 0,
+                                    u'checks': 0,
+                                    u'unhealthy': 0
+                                },
+                                u'sent': 56100,
+                                u'downtime': 0,
+                                u'active': 0,
+                                u'downstart': 0,
+                                u'requests': 374,
+                                u'backup': False,
+                                u'id': 1,
+                                u'response_time': 86,
+                                u'responses': {
+                                    u'5xx': 0,
+                                    u'2xx': 374,
+                                    u'4xx': 0,
+                                    u'3xx': 0,
+                                    u'1xx': 0,
+                                    u'total': 374
+                                }
+                            },
+                            {
+                                u'received': 15974,
+                                u'fails': 0,
+                                u'header_time': 132,
+                                u'weight': 1,
+                                u'unavail': 0,
+                                u'selected': 1468868947000,
+                                u'server': u'10.0.1.50:24140',
+                                u'state': u'up',
+                                u'health_checks': {
+                                    u'fails': 0,
+                                    u'checks': 0,
+                                    u'unhealthy': 0
+                                },
+                                u'sent': 7350,
+                                u'downtime': 0,
+                                u'active': 0,
+                                u'downstart': 0,
+                                u'requests': 49,
+                                u'backup': False,
+                                u'id': 2,
+                                u'response_time': 132,
+                                u'responses': {
+                                    u'5xx': 0,
+                                    u'2xx': 49,
+                                    u'4xx': 0,
+                                    u'3xx': 0,
+                                    u'1xx': 0,
+                                    u'total': 49
+                                }
+                            }
+                        ],
+                        u'keepalive': 0
+                    },
+                    u'uploader': {
+                        u'peers': [
+                            {
+                                u'received': 8304658325,
+                                u'fails': 0,
+                                u'header_time': 16749,
+                                u'weight': 1,
+                                u'unavail': 0,
+                                u'selected': 1468973127000,
+                                u'server': u'10.0.1.51:18399',
+                                u'state': u'up',
+                                u'health_checks': {
+                                    u'fails': 0,
+                                    u'checks': 0,
+                                    u'unhealthy': 0
+                                },
+                                u'sent': 26951257433,
+                                u'downtime': 0,
+                                u'active': 0,
+                                u'downstart': 0,
+                                u'requests': 6134,
+                                u'backup': False,
+                                u'id': 11,
+                                u'response_time': 16750,
+                                u'responses': {
+                                    u'5xx': 537,
+                                    u'2xx': 5597,
+                                    u'4xx': 0,
+                                    u'3xx': 0,
+                                    u'1xx': 0,
+                                    u'total': 6134
+                                }
+                            }
+                        ],
+                        u'keepalive': 0
+                    }
+                },
+                u'generation': 1,
+                u'timestamp': 1469050138054,
+                u'pid': 19,
+                u'connections': {u'active': 1, u'idle': 2, u'accepted': 1368, u'dropped': 0},
+                u'ssl': {u'handshakes': 170, u'session_reuses': 135, u'handshakes_failed': 0},
+                u'load_timestamp': 1468626004273,
+                u'address': u'127.0.0.1',
+                u'requests': {u'current': 1, u'total': 115069},
+                u'caches': {},
+                u'nginx_version': u'1.9.13',
+                u'server_zones': {
+                    u'pages': {
+                        u'received': 28645206823,
+                        u'responses': {
+                            u'5xx': 537,
+                            u'2xx': 113231,
+                            u'4xx': 24,
+                            u'3xx': 6,
+                            u'1xx': 0,
+                            u'total': 113798
+                        },
+                        u'processing': 1,
+                        u'discarded': 1,
+                        u'requests': 113800,
+                        u'sent': 10485044815
+                    }
+                }
+            },
+            1
+        ))
+
+        upstream_collector.collect()
+        assert_that(upstream_collector.last_collect, equal_to(1))
+
+        assert_that(upstream.statsd.current, not_(has_length(0)))
+
+        assert_that(upstream.statsd.current, not_(has_key('counter')))  # Counters need two data values to compute
+                                                                        # difference
+
+        assert_that(upstream.statsd.current, has_key('timer'))
+        timers = upstream.statsd.current['timer']
+
+        for key in (
+            'plus.upstream.header.time', 'plus.upstream.response.time'
+        ):
+            assert_that(timers, has_key(key))
+
+        assert_that(timers['plus.upstream.header.time'][0], equal_to(16.749))
+        assert_that(timers['plus.upstream.response.time'][0], equal_to(16.75))
