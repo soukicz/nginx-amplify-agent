@@ -6,6 +6,7 @@ from threading import current_thread
 
 from amplify.agent import Singleton
 from amplify.agent.common.context import context
+from amplify.agent.common.util import host
 
 
 __author__ = "Grant Hulegaard"
@@ -26,6 +27,7 @@ class AbstractManager(Singleton):
     def __init__(self, **kwargs):
         self.running = False
         self.interval = kwargs.get('interval') or 5.0  # Run interval for manager
+        self.in_container = bool(context.app_config['credentials']['imagename'])
 
     @property
     def status(self):

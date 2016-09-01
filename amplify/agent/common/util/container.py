@@ -28,14 +28,11 @@ def is_docker():
     try:
         stdout, _ = subp.call('cat /proc/self/cgroup | fgrep -e docker | head -n 1 | sed "s/.*docker\/\(.*\)/\\1/"')
         docker_id = stdout[0]
+        return len(docker_id) == 64 and ' ' not in docker_id
+
     except Exception as e:
         context.log.error('failed to find docker id due to %s' % e.__class__.__name__)
         context.log.debug('additional info:', exc_info=True)
-        docker_id = ''
-
-    if len(docker_id) == 64 and ' ' not in docker_id:
-        return True
-    else:
         return False
 
 
@@ -46,7 +43,7 @@ def is_lxc():
     :return: Bool True if 'lxc', False otherwise.
     """
     container_env = os.environ.get('container')
-    return True if container_env == 'lxc' else False
+    return container_env == 'lxc'
 
 
 CONTAINER_MAP = {

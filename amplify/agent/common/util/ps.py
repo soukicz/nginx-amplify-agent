@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
 import psutil
+import sys
 
 from amplify.agent.common.util import subp
 
@@ -82,6 +83,12 @@ class Process(psutil.Process):
     def rlimit_nofile(self):
         if hasattr(self, 'rlimit'):
             return self.rlimit(psutil.RLIMIT_NOFILE)[1]
+
+        elif sys.platform.startswith('freebsd'):
+            procstat_out, _ = subp.call("procstat -l %s | grep 'openfiles' | awk '{print $5}'" % self.pid, check=False)
+            if procstat_out:
+                return int(procstat_out[0])
+
         else:
             # fallback for old systems without rlimit
             cat_limits, _ = subp.call("cat /proc/%s/limits | grep 'Max open files' | awk '{print $5}'" % self.pid, check=False)

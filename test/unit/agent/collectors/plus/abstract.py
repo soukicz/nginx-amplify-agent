@@ -4,7 +4,7 @@ from hamcrest import *
 from test.base import BaseTestCase
 
 from amplify.agent.common.context import context
-from amplify.agent.objects.plus.abstract import PlusObject
+from amplify.agent.objects.plus.object import PlusObject
 from amplify.agent.collectors.plus.abstract import PlusStatusCollector
 
 

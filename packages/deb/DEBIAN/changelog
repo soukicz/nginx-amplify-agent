@@ -1,3 +1,10 @@
+nginx-amplify-agent (0.38-1) unstable; urgency=low
+
+  * FreeBSD support
+  * Bug fixes
+
+ -- Mike Belov <dedm@nginx.com>  Thu, 25 Aug 2016 10:00:00 -0800
+
 nginx-amplify-agent (0.37-1) unstable; urgency=low
 
   * Bug fixes

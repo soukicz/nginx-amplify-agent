@@ -2,7 +2,7 @@
 import os
 from hamcrest import *
 
-from test.base import WithConfigTestCase
+from test.base import BaseTestCase, container_test
 
 from amplify.agent.common.util import container
 from amplify.agent.common.context import context
@@ -15,7 +15,8 @@ __maintainer__ = "Grant Hulegaard"
 __email__ = "grant.hulegaard@nginx.com"
 
 
-class ContainerTestCase(WithConfigTestCase):
+@container_test
+class ContainerTestCase(BaseTestCase):
     def test_is_docker(self):
         flag = container.is_docker()
         assert_that(flag, equal_to(True))

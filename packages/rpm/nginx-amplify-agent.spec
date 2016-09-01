@@ -138,6 +138,11 @@ fi
 
 
 %changelog
+* Thu Aug 25 2016 Mike Belov <dedm@nginx.com> 0.38-1
+- 0.38-1
+- FreeBSD support
+- Bug fixes
+
 * Thu Jul 28 2016 Mike Belov <dedm@nginx.com> 0.37-1
 - 0.37-1
 - Bug fixes

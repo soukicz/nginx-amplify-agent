@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from hamcrest import *
 
-from test.base import RealNginxTestCase
+from test.base import RealNginxTestCase, container_test
 
 from amplify.agent.common.context import context
 from amplify.agent.managers.system import SystemManager
@@ -24,7 +24,6 @@ class SystemManagerTestCase(RealNginxTestCase):
     def teardown_method(self, method):
         context.objects = None
         context._setup_object_tank()
-        context.app_config['credentials']['imagename'] = None
         super(SystemManagerTestCase, self).teardown_method(method)
 
     def test_discover(self):
@@ -37,8 +36,8 @@ class SystemManagerTestCase(RealNginxTestCase):
 
         assert_that(system_obj.type, equal_to('system'))
 
+    @container_test
     def test_docker_discover(self):
-        context.app_config['credentials']['imagename'] = 'DockerTest'
         system_manager = SystemManager()
         system_manager._discover_objects()
         assert_that(system_manager.objects.find_all(types=system_manager.types), has_length(1))

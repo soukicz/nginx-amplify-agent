@@ -4,13 +4,11 @@ from amplify.agent.collectors.nginx.config import NginxConfigCollector
 from amplify.agent.collectors.nginx.errorlog import NginxErrorLogsCollector
 from amplify.agent.collectors.nginx.metrics import NginxMetricsCollector
 
-from amplify.agent.collectors.nginx.meta.centos import NginxCentosMetaCollector
-from amplify.agent.collectors.nginx.meta.deb import NginxDebianMetaCollector
-from amplify.agent.collectors.nginx.meta.common import NginxMetaCollector
 from amplify.agent.common.context import context
 from amplify.agent.common.util import host, http
 from amplify.agent.data.eventd import INFO
 from amplify.agent.objects.abstract import AbstractObject
+from amplify.agent.objects.nginx.binary import nginx_v
 from amplify.agent.objects.nginx.config.config import NginxConfig
 from amplify.agent.objects.nginx.filters import Filter
 
@@ -22,11 +20,11 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
-class CommonNginxObject(AbstractObject):
-    type = 'common_nginx'
+class NginxObject(AbstractObject):
+    type = 'nginx'
 
     def __init__(self, **kwargs):
-        super(CommonNginxObject, self).__init__(**kwargs)
+        super(NginxObject, self).__init__(**kwargs)
 
         # Have to override intervals here because new container sub objects.
         self.intervals = context.app_config['containers'].get('nginx', {}).get('poll_intervals', {'default': 10})
@@ -41,31 +39,41 @@ class CommonNginxObject(AbstractObject):
         self.bin_path = self.data['bin_path']
         self.conf_path = self.data['conf_path']
 
+        # agent config
         default_config = context.app_config['containers']['nginx']
-
         self.upload_config = self.data.get('upload_config') or default_config.get('upload_config', False)
         self.run_config_test = self.data.get('run_test') or default_config.get('run_test', False)
         self.upload_ssl = self.data.get('upload_ssl') or default_config.get('upload_ssl', False)
-        self.filters = []
+
+        # nginx -V data
+        self.parsed_v = nginx_v(self.bin_path)
 
         # filters
-        for raw_filter in self.data.get('filters') or []:
-            self.filters.append(Filter(**raw_filter))
+        self.filters = [Filter(**raw_filter) for raw_filter in self.data.get('filters') or []]
 
         self.config = NginxConfig(self.conf_path, prefix=self.prefix)
         self.config.full_parse()
 
+        # plus status
         self.plus_status_external_url, self.plus_status_internal_url = self.get_alive_plus_status_urls()
         self.plus_status_enabled = True if (self.plus_status_external_url or self.plus_status_internal_url) else False
 
+        # stub status
         self.stub_status_url = self.get_alive_stub_status_url()
         self.stub_status_enabled = True if self.stub_status_url else False
 
         self.processes = []
 
+        self.collectors = []
+        self._setup_meta_collector()
+        self._setup_metrics_collector()
+        self._setup_config_collector()
+        self._setup_access_logs()
+        self._setup_error_logs()
+
     @property
     def definition(self):
-        # Type is hard coded so it is not different from DockerNginx.
+        # Type is hard coded so it is not different from ContainerNginxObject.
         return {'type': 'nginx', 'local_id': self.local_id, 'root_uuid': self.root_uuid}
 
     def get_alive_stub_status_url(self):
@@ -157,6 +165,18 @@ class CommonNginxObject(AbstractObject):
                     context.log.debug('bad response from stub/plus status url %s' % full_url)
         return None
 
+    def _setup_meta_collector(self):
+        collector_cls = self._import_collector_class('nginx', 'meta')
+        self.collectors.append(
+            collector_cls(object=self, interval=self.intervals['meta'])
+        )
+
+    def _setup_metrics_collector(self):
+        collector_cls = self._import_collector_class('nginx', 'metrics')
+        self.collectors.append(
+            collector_cls(object=self, interval=self.intervals['metrics'])
+        )
+
     def _setup_config_collector(self):
         self.collectors.append(
             NginxConfigCollector(
@@ -212,29 +232,5 @@ class CommonNginxObject(AbstractObject):
                 context.log.debug('additional info:', exc_info=True)
 
 
-class NginxObject(CommonNginxObject):
-    type = 'nginx'
-
-    def __init__(self, **kwargs):
-        super(NginxObject, self).__init__(**kwargs)
-
-        meta_collector_class = NginxMetaCollector
-        if host.os_name() == 'linux':
-            if host.linux_name() in ('ubuntu', 'debian'):
-                meta_collector_class = NginxDebianMetaCollector
-            elif host.linux_name() in ('centos', 'rhel'):
-                meta_collector_class = NginxCentosMetaCollector
-
-        # Collector setup...
-        self.collectors = [
-            meta_collector_class(
-                object=self, interval=self.intervals['meta']
-            ),
-            NginxMetricsCollector(
-                object=self, interval=self.intervals['metrics']
-            )
-        ]
-
-        self._setup_config_collector()
-        self._setup_access_logs()
-        self._setup_error_logs()
+class ContainerNginxObject(NginxObject):
+    type = 'container_nginx'

@@ -16,7 +16,6 @@ __email__ = "dedm@nginx.com"
 
 
 class NginxConfigCollector(AbstractCollector):
-
     short_name = 'nginx_config'
 
     def __init__(self, **kwargs):

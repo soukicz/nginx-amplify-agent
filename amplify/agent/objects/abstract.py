@@ -12,6 +12,7 @@ from amplify.agent.data.statsd import StatsdClient
 from amplify.agent.data.configd import ConfigdClient
 from amplify.agent.common.context import context
 from amplify.agent.common.util.threads import spawn
+from amplify.agent.common.util import host, loader
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -33,6 +34,7 @@ class AbstractObject(object):
         self.id = None
         self.data = data if data else kwargs
 
+        self.in_container = bool(context.app_config['credentials']['imagename'])
         self.intervals = context.app_config['containers'].get(self.type, {}).get('poll_intervals', {'default': 10})
         self.running = False
         self.need_restart = False
@@ -122,6 +124,23 @@ class AbstractObject(object):
         #     thread.kill()
         self.running = False
         context.log.debug('stopped object "%s" %s ' % (self.type, self.definition_hash))
+
+    def _import_collector_class(self, type, target):
+        """
+        Import a collector class
+
+        :param type: str - Object type name (e.g. 'system' or 'nginx')
+        :param target: str - what to collect (e.g. 'meta' or 'metrics')
+        :return: A collector class that corresponds with the host's distribution
+        """
+        distribution = host.linux_name()
+        distribution = {'ubuntu': '', 'rhel': 'centos'}.get(distribution, distribution)
+
+        class_name = distribution.title() + type.title() + target.title() + 'Collector'
+        class_path = 'amplify.agent.collectors.%s.%s.%s' % (type.lower(), target.lower(), class_name)
+
+        cls = loader.import_class(class_path)
+        return cls
 
     def flush(self, clients=None):
         """

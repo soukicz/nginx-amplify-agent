@@ -20,8 +20,6 @@ class NginxAccessLogParser(object):
     """
     Nginx access log parser
     """
-    short_name = 'nginx_alog'
-
     combined_format = '$remote_addr - $remote_user [$time_local] "$request" ' + \
                       '$status $body_bytes_sent "$http_referer" "$http_user_agent"'
 

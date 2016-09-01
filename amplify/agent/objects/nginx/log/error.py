@@ -41,9 +41,6 @@ class NginxErrorLogParser(object):
     """
     Nginx error log parser
     """
-
-    short_name = 'nginx_elog'
-
     keys = []  # Included for compatibility with 0 counter handling.
 
     def parse(self, line):

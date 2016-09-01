@@ -9,7 +9,7 @@ import psutil
 from amplify.agent.common.context import context
 from amplify.agent.common.util import host
 from amplify.agent.common.util import subp
-from amplify.agent.collectors.abstract import AbstractCollector
+from amplify.agent.collectors.abstract import AbstractMetricsCollector
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -19,14 +19,15 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
-class SystemMetricsCollector(AbstractCollector):
+class SystemMetricsCollector(AbstractMetricsCollector):
     """
     Unix system metrics collector
     """
     short_name = 'sys_metrics'
 
-    def collect(self):
-        for method in (
+    def __init__(self, **kwargs):
+        super(SystemMetricsCollector, self).__init__(**kwargs)
+        self.register(
             self.agent,
             self.container,
             self.agent_cpu,
@@ -38,13 +39,7 @@ class SystemMetricsCollector(AbstractCollector):
             self.net_io_counters,
             self.la,
             self.netstat
-        ):
-            try:
-                method()
-            except Exception as e:
-                exception_name = e.__class__.__name__
-                context.log.error('failed to collect %s due to %s' % (method.__name__, exception_name))
-                context.log.debug('additional info:', exc_info=True)
+        )
 
     def agent(self):
         """ send amplify.agent.status by default """
@@ -170,7 +165,7 @@ class SystemMetricsCollector(AbstractCollector):
                 new_stamp, new_value = time.time(), getattr(io, method)
                 prev_stamp, prev_value = self.previous_counters.get(disk, {}).get(method, (None, None))
 
-                if isinstance(prev_value, (int, float)) and prev_stamp != new_stamp:
+                if isinstance(prev_value, (int, float, long)) and prev_stamp != new_stamp:
                     metric_name, value_divider, stat_func = description
                     if value_divider:
                         delta_value = (new_value - prev_value) / float(value_divider)
@@ -246,3 +241,16 @@ class SystemMetricsCollector(AbstractCollector):
             self.object.statsd.incr('system.net.listen_overflows', delta_value)
 
         self.previous_counters['system.net.listen_overflows'] = (new_stamp, new_value)
+
+
+class DebianSystemMetricsCollector(SystemMetricsCollector):
+    pass
+
+
+class CentosSystemMetricsCollector(SystemMetricsCollector):
+    pass
+
+
+class FreebsdSystemMetricsCollector(SystemMetricsCollector):
+    pass
+

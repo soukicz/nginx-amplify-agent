@@ -4,12 +4,11 @@ import netifaces
 import psutil
 from hamcrest import *
 
-from amplify.agent.collectors.system.meta.container import ContainerMetaCollector
-from amplify.agent.collectors.system.meta.system import SystemMetaCollector
+from amplify.agent.collectors.system.meta import SystemMetaCollector
 from amplify.agent.common.context import context
 from amplify.agent.common.util import subp
 from amplify.agent.managers.system import SystemManager
-from test.base import BaseTestCase
+from test.base import BaseTestCase, container_test
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -20,6 +19,21 @@ __email__ = "dedm@nginx.com"
 
 
 class MetaParsersTestCase(BaseTestCase):
+
+    def test_special_parse_restrictions(self):
+        container = SystemManager()
+        container._discover_objects()
+
+        os_obj = container.objects.find_all(types=container.types)[0]
+        collector = SystemMetaCollector(object=os_obj)
+        assert_that(not_(collector.in_container))
+
+        collector.collect()
+        collected_meta = os_obj.metad.current
+
+        assert_that(collected_meta, has_key('boot'))
+        assert_that(collected_meta, has_key('hostname'))
+        assert_that(collected_meta, has_key('ec2'))
 
     def test_parse_only_alive_interfaces(self):
         container = SystemManager()
@@ -63,24 +77,31 @@ class MetaParsersTestCase(BaseTestCase):
 
         assert_that(default_interface, equal_to(default_from_netstat))
 
+    def test_collect_each_interface_once(self):
+        container = SystemManager()
+        container._discover_objects()
 
+        os_obj = container.objects.find_all(types=container.types)[0]
+        collector = SystemMetaCollector(object=os_obj)
+
+        num_interfaces = len(psutil.net_if_stats())
+        for x in xrange(3):
+            collector.collect()
+            collected_interfaces = os_obj.metad.current['network']['interfaces']
+            assert_that(collected_interfaces, only_contains(contains_inanyorder('mac', 'name', 'ipv4', 'ipv6')))
+            assert_that(collected_interfaces, has_length(num_interfaces))
+
+
+@container_test
 class ContainerMetaParsersTestCase(BaseTestCase):
-
-    def setup_method(self, method):
-        super(ContainerMetaParsersTestCase, self).setup_method(method)
-        context.app_config['credentials']['imagename'] = 'DockerTest'
-
-    def teardown_method(self, method):
-        context.app_config['credentials']['imagename'] = None
-        super(ContainerMetaParsersTestCase, self).setup_method(method)
 
     def test_special_parse_restrictions(self):
         container = SystemManager()
         container._discover_objects()
 
         os_obj = container.objects.find_all(types=container.types)[0]
-        collector = ContainerMetaCollector(object=os_obj)
-        assert_that(collector.short_name, equal_to('container_meta'))
+        collector = SystemMetaCollector(object=os_obj)
+        assert_that(collector.in_container)
 
         collector.collect()
         collected_meta = os_obj.metad.current
@@ -94,7 +115,7 @@ class ContainerMetaParsersTestCase(BaseTestCase):
         container._discover_objects()
 
         os_obj = container.objects.find_all(types=container.types)[0]
-        collector = ContainerMetaCollector(object=os_obj)
+        collector = SystemMetaCollector(object=os_obj)
         collector.collect()
 
         # get interfaces info
@@ -124,7 +145,7 @@ class ContainerMetaParsersTestCase(BaseTestCase):
         container._discover_objects()
 
         os_obj = container.objects.find_all(types=container.types)[0]
-        collector = ContainerMetaCollector(object=os_obj)
+        collector = SystemMetaCollector(object=os_obj)
         collector.collect()
 
         default_from_netstat, _ = subp.call(
@@ -134,3 +155,17 @@ class ContainerMetaParsersTestCase(BaseTestCase):
         default_interface = os_obj.metad.current['network']['default']
 
         assert_that(default_interface, equal_to(default_from_netstat))
+
+    def test_collect_each_interface_once(self):
+        container = SystemManager()
+        container._discover_objects()
+
+        os_obj = container.objects.find_all(types=container.types)[0]
+        collector = SystemMetaCollector(object=os_obj)
+
+        num_interfaces = len(psutil.net_if_stats())
+        for x in xrange(3):
+            collector.collect()
+            collected_interfaces = os_obj.metad.current['network']['interfaces']
+            assert_that(collected_interfaces, only_contains(contains_inanyorder('mac', 'name')))
+            assert_that(collected_interfaces, has_length(num_interfaces))

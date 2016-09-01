@@ -12,7 +12,7 @@ from amplify.agent.common.context import context
 from amplify.agent.common.errors import AmplifyParseException
 from amplify.agent.common.util.ps import Process
 from amplify.agent.data.eventd import WARNING
-from amplify.agent.collectors.abstract import AbstractCollector
+from amplify.agent.collectors.abstract import AbstractMetricsCollector
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -30,49 +30,44 @@ STUB_RE = re.compile(r'^Active connections: (?P<connections>\d+)\s+[\w ]+\n'
                      r'\s+Waiting:\s+(?P<waiting>\d+)')
 
 
-class CommonNginxMetricsCollector(AbstractCollector):
-
-    short_name = 'common_nginx_metrics'
+class NginxMetricsCollector(AbstractMetricsCollector):
+    short_name = 'nginx_metrics'
 
     def __init__(self, **kwargs):
-        super(CommonNginxMetricsCollector, self).__init__(**kwargs)
-
+        super(NginxMetricsCollector, self).__init__(**kwargs)
         self.processes = [Process(pid) for pid in self.object.workers]
         self.zombies = set()
 
-    def collect(self):
-        for method in (
+        self.register(
             self.workers_count,
             self.memory_info,
             self.workers_fds_count,
             self.workers_cpu,
             self.status
-        ):
-            try:
-                method()
-            except psutil.NoSuchProcess as e:
-                exception_name = e.__class__.__name__
-                pid = e.pid
+        )
+        if not self.in_container:
+            self.register(
+                self.workers_rlimit_nofile,
+                self.workers_io
+            )
 
-                # Log exception
-                context.log.warning(
-                    'failed to collect metrics %s due to %s, object restart needed (PID: %s)' %
-                    (method.__name__, exception_name, pid)
-                )
-                self.object.need_restart = True
-            except Exception as e:
-                exception_name = e.__class__.__name__
+    def handle_exception(self, method, exception):
+        if isinstance(exception, psutil.NoSuchProcess):
 
-                # Fire event warning.
-                self.object.eventd.event(
-                    level=WARNING,
-                    message="can't obtain worker process metrics (maybe permissions?)",
-                    onetime=True
-                )
-
-                # Log exception
-                context.log.error('failed to collect metrics %s due to %s' % (method.__name__, exception_name))
-                context.log.debug('additional info:', exc_info=True)
+            # Log exception
+            context.log.warning(
+                'failed to collect metrics %s due to %s, object restart needed (PID: %s)' %
+                (method.__name__, exception.__class__.__name__, exception.pid)
+            )
+            self.object.need_restart = True
+        else:
+            # Fire event warning.
+            self.object.eventd.event(
+                level=WARNING,
+                message="can't obtain worker process metrics (maybe permissions?)",
+                onetime=True
+            )
+            super(NginxMetricsCollector, self).handle_exception(method, exception)
 
     def workers_count(self):
         """nginx.workers.count"""
@@ -216,7 +211,7 @@ class CommonNginxMetricsCollector(AbstractCollector):
             stamp, value = stub_time, stub[stub_name]
             prev_stamp, prev_value = self.previous_counters.get(metric_name, (None, None))
 
-            if isinstance(prev_value, (int, float)) and prev_stamp and prev_stamp != stamp:
+            if isinstance(prev_value, (int, float, long)) and prev_stamp and prev_stamp != stamp:
                 value_delta = value - prev_value
                 self.object.statsd.incr(metric_name, value_delta)
 
@@ -296,50 +291,6 @@ class CommonNginxMetricsCollector(AbstractCollector):
         self.increment_counters()
         self.finalize_latest()
 
-
-class NginxMetricsCollector(CommonNginxMetricsCollector):
-
-    short_name = 'nginx_metrics'
-
-    def __init__(self, **kwargs):
-        super(CommonNginxMetricsCollector, self).__init__(**kwargs)
-
-        self.processes = [Process(pid) for pid in self.object.workers]
-        self.zombies = set()
-
-    def collect(self):
-        super(NginxMetricsCollector, self).collect()
-
-        for method in (
-                self.workers_rlimit_nofile,
-                self.workers_io
-        ):
-            try:
-                method()
-            except psutil.NoSuchProcess as e:
-                exception_name = e.__class__.__name__
-                pid = e.pid
-
-                # Log exception
-                context.log.warning(
-                    'failed to collect metrics %s due to %s, object restart needed (PID: %s)' %
-                    (method.__name__, exception_name, pid)
-                )
-                self.object.need_restart = True
-            except Exception as e:
-                exception_name = e.__class__.__name__
-
-                # Fire event warning.
-                self.object.eventd.event(
-                    level=WARNING,
-                    message="can't obtain worker process metrics (maybe permissions?)",
-                    onetime=True
-                )
-
-                # Log exception
-                context.log.error('failed to collect metrics %s due to %s' % (method.__name__, exception_name))
-                context.log.debug('additional info:', exc_info=True)
-
     def workers_rlimit_nofile(self):
         """
         nginx.workers.rlimit_nofile
@@ -383,11 +334,24 @@ class NginxMetricsCollector(CommonNginxMetricsCollector):
         # get deltas and store metrics
         for metric_name, value in {'nginx.workers.io.kbs_r': read, 'nginx.workers.io.kbs_w': write}.iteritems():
             prev_stamp, prev_value = self.previous_counters.get(metric_name, (None, None))
-            if isinstance(prev_value, (int, float)) and prev_stamp and prev_stamp != current_stamp:
+            if isinstance(prev_value, (int, float, long)) and prev_stamp and prev_stamp != current_stamp:
                 value_delta = value - prev_value
                 self.object.statsd.incr(metric_name, value_delta)
             self.previous_counters[metric_name] = (current_stamp, value)
 
 
-class ContainerNginxMetricsCollector(CommonNginxMetricsCollector):
-    short_name = 'container_nginx_metrics'
+class DebianNginxMetricsCollector(NginxMetricsCollector):
+    pass
+
+
+class CentosNginxMetricsCollector(NginxMetricsCollector):
+    pass
+
+
+class FreebsdNginxMetricsCollector(NginxMetricsCollector):
+
+    def workers_fds_count(self):
+        """
+        This doesn't work on FreeBSD
+        """
+        pass

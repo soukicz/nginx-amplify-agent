@@ -108,13 +108,13 @@ def hostname():
 
 
 def os_name():
-    if sys.platform == 'darwin':
+    if sys.platform.startswith('darwin'):
         return 'mac'
-    elif sys.platform.find('linux') != -1:
+    elif sys.platform.startswith('linux'):
         return 'linux'
-    elif sys.platform.find('freebsd') != -1:
+    elif sys.platform.startswith('freebsd'):
         return 'freebsd'
-    elif sys.platform.find('sunos') != -1:
+    elif sys.platform.startswith('sunos'):
         return 'solaris'
     else:
         return sys.platform
@@ -182,13 +182,18 @@ def block_devices():
     :return: [] of str
     """
     result = []
-    if os.path.exists('/sys/block/'):
-        for device in os.listdir('/sys/block/'):
-            pointed_at = os.readlink('/sys/block/%s' % device)
-            if '/virtual/' not in pointed_at:
-                result.append(device)
-    return result
 
+    # using freebsd
+    if os_name() == 'freebsd':
+        geom_out, _ = subp.call("geom disk list | grep 'Geom name:' | awk '{print $3}'", check=False)
+        result = [device for device in geom_out if device]
+
+    # using linux
+    elif os.path.exists('/sys/block/'):
+        devices = os.listdir('/sys/block/')
+        result = [device for device in devices if '/virtual/' not in os.readlink('/sys/block/%s' % device)]
+
+    return result
 
 def alive_interfaces():
     """

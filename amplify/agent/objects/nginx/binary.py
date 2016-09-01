@@ -10,19 +10,17 @@ __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
-
 DEFAULT_PREFIX = '/usr/local/nginx'
 DEFAULT_CONFPATH = 'conf/nginx.conf'
 
 
-def nginx_v(path_to_binary):
+def nginx_v(bin_path):
     """
     call -V and parse results
 
-    :param path_to_binary str - path to binary
+    :param bin_path str - path to binary
     :return {} - see result
     """
-
     result = {
         'version': None,
         'plus': {'enabled': False, 'release': None},
@@ -30,20 +28,16 @@ def nginx_v(path_to_binary):
         'configure': {}
     }
 
-    _, nginx_v_err = subp.call("%s -V" % path_to_binary)
+    _, nginx_v_err = subp.call("%s -V" % bin_path)
     for line in nginx_v_err:
         # SSL stuff
         if line.lower().startswith('built with') and 'ssl' in line.lower():
-            parts = line.split(' ')
-            lib_name, lib_version = parts[2:4]
-            result['ssl'] = {
-                'built': [lib_name, lib_version],
-                'run': [lib_name, lib_version],
-            }
+            lib_name, lib_version = line.split()[2:4]
+            result['ssl']['built'] = [lib_name, lib_version]
+            result['ssl']['run'] = [lib_name, lib_version]
 
-        if line.lower().startswith('run with') and 'ssl' in line.lower():
-            parts = line.split(' ')
-            lib_name, lib_version = parts[2:4]
+        elif line.lower().startswith('run with') and 'ssl' in line.lower():
+            lib_name, lib_version = line.split()[2:4]
             result['ssl']['run'] = [lib_name, lib_version]
 
         parts = line.split(':')
@@ -80,50 +74,43 @@ def get_prefix_and_conf_path(cmd, configure=None):
     :param configure: parsed configure args from nginx -V
     :return: prefix, conf_path
     """
+    cmd = cmd.replace('nginx: master process ', '')
+    params = iter(cmd.split())
 
     # find bin path
-    cmd = cmd.replace('nginx: master process ', '')
-    params = filter(lambda x: x != '', cmd.split(' '))
-    bin_path = params.pop(0)
+    bin_path = next(params)
+    prefix = None
+    conf_path = None
+
+
+    # try to find config and prefix
+    for param in params:
+        if param == '-c':
+            conf_path = next(params, None)
+        elif param == '-p':
+            prefix = next(params, None)
 
     # parse nginx -V
+    parsed_v = nginx_v(bin_path)
     if configure is None:
-        configure = nginx_v(bin_path)['configure']
-
-    # parse running cmd - try to find config and prefix
-    conf_path = None
-    prefix = None
-    for i in xrange(len(params)):
-        value = params[i]
-        if value == '-c':
-            conf_path = params[i + 1]
-        elif value == '-p':
-            prefix = params[i + 1]
+        configure = parsed_v['configure']
 
     # if prefix was not found in cmd - try to read it from configure args
     # if there is no key "prefix" in args, then use default
     if not prefix:
-        if 'prefix' in configure:
-            prefix = configure['prefix']
-        else:
-            prefix = DEFAULT_PREFIX
-
+        prefix = configure.get('prefix', DEFAULT_PREFIX)
     if not conf_path:
-        if 'conf-path' in configure:
-            conf_path = configure['conf-path']
-        else:
-            conf_path = DEFAULT_CONFPATH
+        conf_path = configure.get('conf-path', DEFAULT_CONFPATH)
 
     # remove trailing slashes from prefix
-    prefix = '/' + '/'.join(filter(lambda x: x, prefix.split('/')))
+    prefix = prefix.rstrip('/')
 
     # start processing conf_path
     # if it has not an absolutely path, then we should add prefix to it
-
     if not conf_path.startswith('/'):
         conf_path = '%s/%s' % (prefix, conf_path)
 
-    return bin_path, prefix, conf_path, nginx_v(bin_path)['version']
+    return bin_path, prefix, conf_path, parsed_v['version']
 
 
 def _parse_arguments(argstring):
@@ -136,43 +123,28 @@ def _parse_arguments(argstring):
     if argstring.startswith('configure arguments:'):
         __, argstring = argstring.split(':', 1)
 
+    arg_parts = iter(filter(len, argstring.split(' --')))
     arguments = {}
 
-    current_key = None
-    current_value = None
+    for part in arg_parts:
+        # if the argument is a simple switch, add it and move on
+        if '=' not in part:
+            arguments[part] = True
+            continue
 
-    def _save_value(key, value):
-        if key in arguments:
-            if not isinstance(arguments[key], list):
-                arguments[key] = [arguments[key]]
+        key, value = part.split('=', 1)
 
-            arguments[key].append(value)
-        else:
+        # this fixes quoted argument values that broke from the ' --' split
+        if value.startswith("'"):
+            while not value.endswith("'"):
+                value += ' --' + next(arg_parts)
+
+        # if a key is set multiple times, values are stored as a list
+        if not key in arguments:
             arguments[key] = value
-
-    for part in argstring.split(' --'):
-        if '=' in part:
-            # next part of compound
-            if current_key and current_value:
-                current_value += part
-                if part.endswith("'"):
-                    _save_value(current_key, current_value)
-                    current_key = None
-                    current_value = None
-            else:
-                k, v = part.split('=', 1)
-                # compound argument
-                if v.startswith("'") and v.endswith("'"):
-                    _save_value(k, v)
-                elif v.startswith("'"):
-                    current_key = k
-                    current_value = v
-                # simple argument
-                else:
-                    _save_value(k, v)
+        elif not isinstance(arguments[key], list):
+            arguments[key] = [arguments[key], value]
         else:
-            # boolean
-            if part:
-                arguments[part] = True
+            arguments[key].append(value)
 
     return arguments

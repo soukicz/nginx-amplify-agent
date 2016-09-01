@@ -4,8 +4,7 @@ from hamcrest import *
 from test.base import BaseTestCase
 
 from amplify.agent.common.context import context
-from amplify.agent.objects.plus.status_zone import NginxStatusZoneObject
-
+from amplify.agent.objects.plus.object import NginxStatusZoneObject
 
 __author__ = "Grant Hulegaard"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."

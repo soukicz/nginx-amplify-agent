@@ -15,7 +15,6 @@ __email__ = "dedm@nginx.com"
 
 
 class NginxAccessLogsCollector(AbstractCollector):
-
     short_name = 'nginx_alog'
 
     counters = {
@@ -69,7 +68,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         self.parser = NginxAccessLogParser(log_format)
         self.tail = tail if tail is not None else FileTail(filename)
         self.filters = []
-        
+
         # skip empty filters and filters for other log file
         for log_filter in self.object.filters:
             if log_filter.empty:
@@ -77,6 +76,18 @@ class NginxAccessLogsCollector(AbstractCollector):
             if log_filter.filename and log_filter.filename != self.filename:
                 continue
             self.filters.append(log_filter)
+
+        self.register(
+            self.http_method,
+            self.http_status,
+            self.http_version,
+            self.request_length,
+            self.body_bytes_sent,
+            self.bytes_sent,
+            self.gzip_ration,
+            self.request_time,
+            self.upstreams,
+        )
 
     def init_counters(self):
         for counter, key in self.counters.iteritems():
@@ -102,30 +113,9 @@ class NginxAccessLogsCollector(AbstractCollector):
             if parsed['malformed']:
                 self.request_malformed()
             else:
-                # try to match custom filters 
-                matched_filters = []
-                for log_filter in self.filters:
-                    if log_filter.match(parsed):
-                        matched_filters.append(log_filter)
-                
-                for method in (
-                    self.http_method,
-                    self.http_status,
-                    self.http_version,
-                    self.request_length,
-                    self.body_bytes_sent,
-                    self.bytes_sent,
-                    self.gzip_ration,
-                    self.request_time,
-                    self.upstreams,
-                ):
-                    try:
-                        method(parsed, matched_filters)
-                    except Exception as e:
-                        exception_name = e.__class__.__name__
-                        context.log.error(
-                            'failed to collect log metrics %s due to %s' % (method.__name__, exception_name))
-                        context.log.debug('additional info:', exc_info=True)
+                # try to match custom filters and collect log metrics with them
+                matched_filters = [filter for filter in self.filters if filter.match(parsed)]
+                super(NginxAccessLogsCollector, self).collect(parsed, matched_filters)
 
         context.log.debug('%s processed %s lines from %s' % (self.object.definition_hash, count, self.filename))
 
@@ -144,7 +134,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.http.method.delete
         nginx.http.method.options
         nginx.http.method.other
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
@@ -166,7 +156,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.http.status.4xx
         nginx.http.status.5xx
         nginx.http.status.discarded
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
@@ -186,7 +176,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.http.v1_0
         nginx.http.v1_1
         nginx.http.v2
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
@@ -218,7 +208,7 @@ class NginxAccessLogsCollector(AbstractCollector):
     def request_length(self, data, matched_filters=None):
         """
         nginx.http.request.length
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
@@ -263,7 +253,7 @@ class NginxAccessLogsCollector(AbstractCollector):
     def gzip_ration(self, data, matched_filters=None):
         """
         nginx.http.gzip.ratio
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
@@ -282,7 +272,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.http.request.time.max
         nginx.http.request.time.pctl95
         nginx.http.request.time.count
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
@@ -326,7 +316,7 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.upstream.status.4xx
         nginx.upstream.status.5xx
         nginx.upstream.response.length
-        
+
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """

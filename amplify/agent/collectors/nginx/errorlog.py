@@ -15,7 +15,6 @@ __email__ = "dedm@nginx.com"
 
 
 class NginxErrorLogsCollector(AbstractCollector):
-
     short_name = 'nginx_elog'
 
     counters = (
@@ -31,6 +30,7 @@ class NginxErrorLogsCollector(AbstractCollector):
         self.level = level
         self.parser = NginxErrorLogParser()
         self.tail = tail if tail is not None else FileTail(filename)
+        self.register(self.error_log_parsed)
 
     def init_counters(self):
         for counter in self.counters:
@@ -51,11 +51,9 @@ class NginxErrorLogsCollector(AbstractCollector):
                 error = None
 
             if error:
-                try:
-                    self.object.statsd.incr(error)
-                except Exception as e:
-                    exception_name = e.__class__.__name__
-                    context.log.error('failed to collect error log metrics due to %s' % exception_name)
-                    context.log.debug('additional info:', exc_info=True)
+                super(NginxErrorLogsCollector, self).collect(error)
 
         context.log.debug('%s processed %s lines from %s' % (self.object.definition_hash, count, self.filename))
+
+    def error_log_parsed(self, error):
+        self.object.statsd.incr(error)

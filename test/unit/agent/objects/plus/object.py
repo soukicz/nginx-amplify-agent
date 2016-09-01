@@ -3,7 +3,7 @@ from hamcrest import *
 
 from test.base import BaseTestCase
 
-from amplify.agent.objects.plus.abstract import PlusObject
+from amplify.agent.objects.plus.object import PlusObject
 
 
 __author__ = "Grant Hulegaard"

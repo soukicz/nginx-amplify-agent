@@ -12,7 +12,7 @@ from unittest import TestCase
 
 import test.unit.agent.common.config.app
 
-from amplify.agent.common.util import configreader, subp
+from amplify.agent.common.util import configreader, subp, host
 from amplify.agent.common.context import context
 from amplify.agent.objects.abstract import AbstractObject
 
@@ -157,3 +157,8 @@ nginx_plus_test = pytest.mark.skipif(not nginx_plus_installed(), reason='This is
 nginx_oss_test = pytest.mark.skipif(nginx_plus_installed(), reason='This is a test for OSS nginx')
 future_test = pytest.mark.skipif(1 > 0, reason='This test will be written in future')
 disabled_test = pytest.mark.skipif(1 > 0, reason='This test has unexpected behavior')
+
+if host.os_name() == 'freebsd':
+    container_test = pytest.mark.skip(reason='FreeBSD cannot run in linux containers')
+else:
+    container_test = pytest.mark.usefixtures('docker')

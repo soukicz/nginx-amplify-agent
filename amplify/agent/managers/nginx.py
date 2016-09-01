@@ -8,8 +8,7 @@ from amplify.agent.data.eventd import INFO
 from amplify.agent.common.util import subp
 from amplify.agent.common.context import context
 from amplify.agent.managers.abstract import ObjectManager
-from amplify.agent.objects.nginx.object import NginxObject
-from amplify.agent.objects.nginx.container import ContainerNginxObject
+from amplify.agent.objects.nginx.object import NginxObject, ContainerNginxObject
 from amplify.agent.objects.nginx.binary import get_prefix_and_conf_path
 
 __author__ = "Mike Belov"
@@ -20,7 +19,7 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
-LAUNCHERS = ['supervisord', 'supervisorctl', 'runsv']
+LAUNCHERS = ['supervisord', 'supervisorctl', 'runsv', 'supervise']
 
 
 class NginxManager(ObjectManager):
@@ -31,15 +30,14 @@ class NginxManager(ObjectManager):
     type = 'nginx'
     types = ('nginx', 'container_nginx')
 
-    @staticmethod
-    def _init_nginx_object(data=None):
+    def _init_nginx_object(self, data=None):
         """
         Method for initializing a new NGINX object.  Checks to see if we need a Docker object or a regular one.
 
         :param data: Dict Data dict for object init
-        :return: NginxObject/DockerNginxObject
+        :return: NginxObject/ContainerNginxObject
         """
-        if context.app_config['credentials']['imagename']:
+        if self.in_container:
             return ContainerNginxObject(data=data)
         else:
             return NginxObject(data=data)

@@ -7,7 +7,7 @@ from hamcrest import *
 from amplify.agent.common.util import subp
 from amplify.agent.common.context import context
 from amplify.agent.managers.nginx import NginxManager
-from test.base import RealNginxTestCase, BaseTestCase
+from test.base import RealNginxTestCase, BaseTestCase, container_test
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -109,14 +109,8 @@ class NginxManagerTestCase(RealNginxTestCase):
         assert_that(local_ids, has_item(obj.local_id))
 
 
+@container_test
 class DockerNginxManagerTestCase(NginxManagerTestCase):
-    def setup_method(self, method):
-        super(DockerNginxManagerTestCase, self).setup_method(method)
-        context.app_config['credentials']['imagename'] = 'DockerTest'
-
-    def teardown_method(self, method):
-        context.app_config['credentials']['imagename'] = None
-        super(DockerNginxManagerTestCase, self).teardown_method(method)
 
     def test_restart(self):
         old_master, old_workers = self.get_master_workers()

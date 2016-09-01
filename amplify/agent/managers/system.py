@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 from amplify.agent.common.context import context
 from amplify.agent.managers.abstract import ObjectManager
-from amplify.agent.objects.system.system import SystemObject
-from amplify.agent.objects.system.container import ContainerSystemObject
+from amplify.agent.objects.system.object import SystemObject, ContainerSystemObject
 
 
 __author__ = "Mike Belov"
@@ -16,7 +15,7 @@ __email__ = "dedm@nginx.com"
 class SystemManager(ObjectManager):
     """
     Manager for system objects
-    Typically we have only one object since we run in a single OS
+    Typically we have only one object since we run in a single system
     """
     name = 'system_manager'
     type = 'system'
@@ -24,25 +23,11 @@ class SystemManager(ObjectManager):
 
     def _discover_objects(self):
         if not self.objects.find_all(types=self.types):
-            if context.app_config['credentials']['imagename']:
-                self._init_docker()
+            data = {'uuid': context.uuid}
+            if self.in_container:
+                data['imagename'] = context.app_config['credentials']['imagename']
+                sys_object = ContainerSystemObject(data=data)
             else:
-                self._init_system()
-
-    def _init_system(self):
-        data = dict(
-            hostname=context.hostname,
-            uuid=context.uuid
-        )
-
-        sys_object = SystemObject(data=data)
-        self.objects.register(sys_object)
-
-    def _init_docker(self):
-        data = dict(
-            imagename=context.app_config['credentials']['imagename'],
-            uuid=context.uuid
-        )
-
-        sys_object = ContainerSystemObject(data=data)
-        self.objects.register(sys_object)
+                data['hostname'] = context.hostname
+                sys_object = SystemObject(data=data)
+            self.objects.register(sys_object)
