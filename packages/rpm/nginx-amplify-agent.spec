@@ -138,7 +138,11 @@ fi
 
 
 %changelog
-* Tue Sep 20 2016 Mike Belov <dedm@nginx.com> 0.39-1gid
+* Wed Sep 21 2016 Mike Belov <dedm@nginx.com> 0.39-2
+- 0.39-2
+- Bug fixes
+
+* Tue Sep 20 2016 Mike Belov <dedm@nginx.com> 0.39-1
 - 0.39-1
 - Config parser improvements
 - Log parser improvements
