@@ -47,6 +47,7 @@ class NginxAccessLogParser(object):
         'gzip_ratio': ['.+', float],
     }
 
+    # TODO: Remove this now semi-unnecessary variable.
     request_variables = {
         'request_method': ['[A-Z]+', str],
         'request_uri': ['/.*', str],
@@ -135,8 +136,12 @@ class NginxAccessLogParser(object):
         common = self.regex.match(line)
 
         if common:
-            for key in self.keys:  # TODO: Remove extra processing by using a set of keys.
-                func = self.common_variables.get(key, self.default_variable)[1]
+            for key in self.keys:
+                # key local vars
+                time_var = False
+
+                func = self.common_variables[key][1] if key in self.common_variables \
+                    else self.default_variable[1]
                 try:
                     value = func(common.group(key))
                 # for example gzip ratio can be '-' and float
@@ -145,6 +150,7 @@ class NginxAccessLogParser(object):
 
                 # time variables should be parsed to array of float
                 if key.endswith('_time'):
+                    time_var = True
                     # skip empty vars
                     if value != '-':
                         array_value = []
@@ -166,7 +172,7 @@ class NginxAccessLogParser(object):
                     else:
                         result[key] = [value]
 
-                if key not in result.keys() and not key.endswith('_time'):
+                if key not in result and not time_var:
                     result[key] = value
         else:
             context.default_log.debug(
@@ -175,13 +181,17 @@ class NginxAccessLogParser(object):
                 )
             )
 
-        # parse sub fields
         if 'request' in result:
-            req = REQUEST_RE.match(result['request'])
-            if req:
-                for req_key in self.request_variables.iterkeys():
-                    result[req_key] = req.group(req_key)
-            else:
+            try:
+                method, uri, proto = result['request'].split(' ')
+            except:
                 result['malformed'] = True
+
+            if not result['malformed'] and len(method) < 3:
+                result['malformed'] = True
+
+            result['request_method'] = method
+            result['request_uri'] = uri
+            result['server_protocol'] = proto
 
         return result

@@ -16,18 +16,15 @@ __email__ = "dedm@nginx.com"
 
 class FiltersTestCase(BaseTestCase):
     def test_init(self):
-        raw_filter_data = {
-            'filter_rule_id': '1',
-            'metric': 'http.something',
-            'data': [
+        filtr = Filter(
+            filter_rule_id='1',
+            metric='http.something',
+            data=[
                 {'logname': 'foo.txt'},
                 {'$request_method': 'post'},
                 {'$request_uri': '.*\.gif'}
             ]
-        }
-
-        filtr = Filter(**raw_filter_data)
-
+        )
         assert_that(filtr.filter_rule_id, equal_to('1'))
         assert_that(filtr.metric, equal_to('http.something'))
         assert_that(filtr.filename, equal_to('foo.txt'))
@@ -35,25 +32,20 @@ class FiltersTestCase(BaseTestCase):
         assert_that(filtr.data['request_uri'], equal_to(re.compile(".*\.gif")))
 
     def test_init_without_filename(self):
-        raw_filter_data = {
-            'filter_rule_id': '1',
-            'metric': 'http.something',
-            'data': [
+        filtr = Filter(
+            filter_rule_id='1',
+            metric='http.something',
+            data=[
                 {'$request_method': 'post'},
                 {'$request_uri': '*.gif'}
             ]
-        }
-
-        filtr = Filter(**raw_filter_data)
+        )
         assert_that(filtr.filename, equal_to(None))
 
     def test_empty(self):
-        raw_filter_data = {
-            'filter_rule_id': '1',
-            'metric': 'http.something',
-            'data': []
-        }
-
-        filtr = Filter(**raw_filter_data)
+        filtr = Filter(
+            filter_rule_id='1',
+            metric='http.something',
+            data=[]
+        )
         assert_that(filtr.empty, equal_to(True))
-

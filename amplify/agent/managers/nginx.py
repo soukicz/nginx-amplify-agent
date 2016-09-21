@@ -11,6 +11,7 @@ from amplify.agent.managers.abstract import ObjectManager
 from amplify.agent.objects.nginx.object import NginxObject, ContainerNginxObject
 from amplify.agent.objects.nginx.binary import get_prefix_and_conf_path
 
+
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
 __credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard", "Arie van Luttikhuizen"]
@@ -180,6 +181,11 @@ class NginxManager(ObjectManager):
         except:
             context.log.error('failed to find running nginx via %s' % ps_cmd)
             context.log.debug('additional info:', exc_info=True)
+            if context.objects.root_object:
+                context.objects.root_object.eventd.event(
+                    level=INFO,
+                    message='no nginx found'
+                )
             return []
 
         # return an empty list if there are no master processes
@@ -209,7 +215,7 @@ class NginxManager(ObjectManager):
                         out, err = subp.call('ps o command %d' % ppid)
                         parent_command = out[1] # take the second line because the first is a header
                         if not any(launcher in parent_command for launcher in LAUNCHERS):
-                            context.log.warning(
+                            context.log.debug(
                                 'launching nginx with "%s" is not currently supported' % parent_command
                             )
                             continue

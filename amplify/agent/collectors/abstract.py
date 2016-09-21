@@ -23,6 +23,8 @@ class AbstractCollector(object):
     """
     short_name = None
 
+    zero_counters = tuple()
+
     def __init__(self, object=None, interval=None):
         self.object = object
         self.in_container = self.object.in_container
@@ -34,6 +36,16 @@ class AbstractCollector(object):
 
         # stamp store organized by type - metric_name - stamp
         self.current_stamps = defaultdict(lambda: defaultdict(time.time))
+
+    def init_counters(self, counters=None):
+        """
+        Helper function for sending 0 values when no data is found.
+
+        :param counters: Iterable String values of names of counters to init as 0 (default is self.zero_counters)
+        """
+        counters = counters or self.zero_counters
+        for counter in counters:
+            self.object.statsd.incr(counter, value=0)
 
     def run(self):
         """
@@ -91,6 +103,9 @@ class AbstractCollector(object):
         time.sleep(self.interval)
 
     def collect(self, *args):
+        if self.zero_counters:
+            self.init_counters()
+
         for method in self.methods:
             try:
                 method(*args)

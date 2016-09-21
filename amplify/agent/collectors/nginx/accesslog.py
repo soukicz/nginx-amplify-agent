@@ -49,8 +49,8 @@ class NginxAccessLogsCollector(AbstractCollector):
         'nginx.cache.revalidated': 'upstream_cache_status',
         'nginx.cache.stale': 'upstream_cache_status',
         'nginx.cache.updating': 'upstream_cache_status',
-        # 'upstream.next.count': None,  # Not sure how best to handle this since this...ignoring for now.
-        # 'upstream.request.count': None  # Not sure how to handle for same reason above.
+        'nginx.upstream.next.count': None,
+        'nginx.upstream.request.count': None
     }
 
     valid_http_methods = (
@@ -92,8 +92,12 @@ class NginxAccessLogsCollector(AbstractCollector):
     def init_counters(self):
         for counter, key in self.counters.iteritems():
             # If keys are in the parser format (access log) or not defined (error log)
-            if key in self.parser.keys:
+            if key in self.parser.keys or key is None:
                 self.object.statsd.incr(counter, value=0)
+
+        # init counters for custom filters
+        for counter in set(f.metric for f in self.filters):
+            self.count_custom_filter(self.filters, counter, 0, self.object.statsd.incr)
 
     def collect(self):
         self.init_counters()  # set all counters to 0
@@ -104,7 +108,7 @@ class NginxAccessLogsCollector(AbstractCollector):
             try:
                 parsed = self.parser.parse(line)
             except:
-                context.log.debug('could parse line %s' % line, exc_info=True)
+                context.log.debug('could not parse line %s' % line, exc_info=True)
                 parsed = None
 
             if not parsed:
@@ -143,8 +147,6 @@ class NginxAccessLogsCollector(AbstractCollector):
             method = method if method in self.valid_http_methods else 'other'
             metric_name = 'nginx.http.method.%s' % method
             self.object.statsd.incr(metric_name)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 
@@ -165,8 +167,6 @@ class NginxAccessLogsCollector(AbstractCollector):
             suffix = 'discarded' if status in ('499', '444', '408') else '%sxx' % status[0]
             metric_name = 'nginx.http.status.%s' % suffix
             self.object.statsd.incr(metric_name)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 
@@ -187,21 +187,20 @@ class NginxAccessLogsCollector(AbstractCollector):
 
             version = proto.split('/')[-1]
 
-            if version.startswith('0.9'):
-                suffix = '0_9'
-            elif version.startswith('1.0'):
-                suffix = '1_0'
-            elif version.startswith('1.1'):
+            # Ordered roughly by expected popularity to reduce number of calls to `startswith`
+            if version.startswith('1.1'):
                 suffix = '1_1'
             elif version.startswith('2.0'):
                 suffix = '2'
+            elif version.startswith('1.0'):
+                suffix = '1_0'
+            elif version.startswith('0.9'):
+                suffix = '0_9'
             else:
                 suffix = version.replace('.', '_')
 
             metric_name = 'nginx.http.v%s' % suffix
             self.object.statsd.incr(metric_name)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 
@@ -215,8 +214,6 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'request_length' in data:
             metric_name, value = 'nginx.http.request.length', data['request_length']
             self.object.statsd.average(metric_name, value)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.average)
 
@@ -230,8 +227,6 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'body_bytes_sent' in data:
             metric_name, value = 'nginx.http.request.body_bytes_sent', data['body_bytes_sent']
             self.object.statsd.incr(metric_name, value)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.incr)
 
@@ -245,8 +240,6 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'bytes_sent' in data:
             metric_name, value = 'nginx.http.request.bytes_sent', data['bytes_sent']
             self.object.statsd.incr(metric_name, value)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.incr)
 
@@ -260,8 +253,6 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'gzip_ratio' in data:
             metric_name, value = 'nginx.http.gzip.ratio', data['gzip_ratio']
             self.object.statsd.average(metric_name, value)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.average)
 
@@ -279,8 +270,6 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'request_time' in data:
             metric_name, value = 'nginx.http.request.time', sum(data['request_time'])
             self.object.statsd.timer(metric_name, value)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.timer)
 
@@ -320,39 +309,24 @@ class NginxAccessLogsCollector(AbstractCollector):
         :param data: {} of parsed line
         :param matched_filters: [] of matched filters
         """
-
-        # find out if we have info about upstreams
-        empty_values = ('-', '')
-        upstream_data_found = False
-        for key in data.iterkeys():
-            if key.startswith('upstream') and data[key] not in empty_values:
-                upstream_data_found = True
-                break
-
-        if not upstream_data_found:
+        if not any(key.startswith('upstream') and data[key] not in ('-', '') for key in data):
             return
 
         # counters
         upstream_response = False
         if 'upstream_status' in data:
-            bucket = data['upstream_status']  # comma separated variables are always returned as list by parser
-
-            for status in bucket:
+            for status in data['upstream_status']: # upstream_status is parsed as a list
                 if status.isdigit():
                     suffix = '%sxx' % status[0]
                     metric_name = 'nginx.upstream.status.%s' % suffix
                     upstream_response = True if suffix in ('2xx', '3xx') else False   # Set flag for upstream length processing
                     self.object.statsd.incr(metric_name)
-
-                    # call custom filters
                     if matched_filters:
                         self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 
         if upstream_response and 'upstream_response_length' in data:
             metric_name, value = 'nginx.upstream.response.length', data['upstream_response_length']
             self.object.statsd.average(metric_name, value)
-
-            # call custom filters
             if matched_filters:
                 self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.average)
 
@@ -373,35 +347,27 @@ class NginxAccessLogsCollector(AbstractCollector):
                 # store all values
                 value = sum(values)
                 self.object.statsd.timer(metric_name, value)
-
-                # call custom filters
                 if matched_filters:
                     self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.timer)
 
         # log upstream switches
         metric_name, value = 'nginx.upstream.next.count', 0 if upstream_switches is None else upstream_switches
         self.object.statsd.incr(metric_name, value)
-
-        # call custom filters
         if matched_filters:
             self.count_custom_filter(matched_filters, metric_name, value, self.object.statsd.incr)
 
         # cache
         if 'upstream_cache_status' in data:
             cache_status = data['upstream_cache_status']
-            if not cache_status.startswith('-'):
+            if cache_status != '-':
                 metric_name = 'nginx.cache.%s' % cache_status.lower()
                 self.object.statsd.incr(metric_name)
-
-                # call custom filters
                 if matched_filters:
                     self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 
         # log total upstream requests
         metric_name = 'nginx.upstream.request.count'
         self.object.statsd.incr(metric_name)
-
-        # call custom filters
         if matched_filters:
             self.count_custom_filter(matched_filters, metric_name, 1, self.object.statsd.incr)
 

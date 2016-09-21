@@ -1,3 +1,11 @@
+nginx-amplify-agent (0.39-1) unstable; urgency=low
+
+  * Config parser improvements
+  * Log parser improvements
+  * Bug fixes
+
+ -- Mike Belov <dedm@nginx.com>  Tue, 20 Sep 2016 10:00:00 -0800
+
 nginx-amplify-agent (0.38-1) unstable; urgency=low
 
   * FreeBSD support

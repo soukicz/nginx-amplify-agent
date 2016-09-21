@@ -19,3 +19,10 @@ class DummyObject(AbstractObject):
 
     def __init__(self, **kwargs):
         super(DummyObject, self).__init__(**kwargs)
+
+
+class DummyRootObject(DummyObject):
+    """
+    Dummy root object...
+    """
+    type = 'system'

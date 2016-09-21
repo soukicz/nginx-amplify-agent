@@ -41,13 +41,14 @@ class FileTail(object):
             self._offset = OFFSET_CACHE[self.filename]
 
         # save inode to determine rotations
-        self._inode = stat(self.filename).st_ino
+        self._inode = self._st_ino()
 
     def __del__(self):
         if self._filehandle():
-            self._filehandle().close()
+            self._fh.close()
 
     def __iter__(self):
+        self._filehandle()
         return self
 
     def next(self):
@@ -62,6 +63,12 @@ class FileTail(object):
             raise
         return line
 
+    def _st_ino(self):
+        return stat(self.filename).st_ino
+
+    def _update_inode(self):
+        self._inode = self._st_ino()
+
     def _file_was_rotated(self):
         """
         Checks that file was rotated
@@ -73,7 +80,7 @@ class FileTail(object):
 
         while tries < 2:  # Try twice before moving on.
             try:
-                new_inode = stat(self.filename).st_ino
+                new_inode = self._st_ino()
             except:
                 time.sleep(0.5)
                 tries += 1
@@ -116,7 +123,7 @@ class FileTail(object):
                 self._fh.close()
 
             if file_was_rotated:
-                self._inode = stat(self.filename).st_ino
+                self._update_inode()
                 self._offset = OFFSET_CACHE[self.filename] = 0
 
             self._fh = open(self.filename, "r")
@@ -127,8 +134,7 @@ class FileTail(object):
         self._offset = OFFSET_CACHE[self.filename] = self._filehandle().tell()
 
     def _get_next_line(self):
-        line = self._filehandle().readline()
-        self._update_offset()
+        line = self._fh.readline()
         if not line:
             raise StopIteration
         return line.rstrip()

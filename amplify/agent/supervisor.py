@@ -14,6 +14,7 @@ from amplify.agent.common.util.backoff import exponential_delay
 from amplify.agent.common.errors import AmplifyCriticalException
 from amplify.agent.common.util import loader
 from amplify.agent.common.util.threads import spawn
+from amplify.agent.common.util.system import get_root_definition
 from amplify.agent.managers.bridge import Bridge
 
 
@@ -172,9 +173,13 @@ class Supervisor(object):
         ):
             return
 
+        # Handle root_object before explicitly initializing a root object
+        if not root_object:
+            root_object = get_root_definition()
+
         # talk to cloud
         try:
-            # reset the cloud talk counter to avoid sending new requests every 5.0 seconds.
+            # reset the cloud talk counter to avoid sending new requests every 5.0 seconds
             self.last_cloud_talk_time = int(time.time())
 
             cloud_response = CloudResponse(

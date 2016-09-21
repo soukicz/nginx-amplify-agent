@@ -6,15 +6,20 @@ from itertools import izip
 
 from pyparsing import (
     Regex, Keyword, Literal, White, Word, alphanums, CharsNotIn, Forward, Group,
-    Optional, OneOrMore, ZeroOrMore, pythonStyleComment, lineno, LineStart, LineEnd
+    Optional, OneOrMore, ZeroOrMore, pythonStyleComment, lineno, LineStart, LineEnd,
+    oneOf, QuotedString, nestedExpr, ParserElement
 )
 
 from amplify.agent.common.context import context
 from amplify.agent.common.util.escape import prep_raw
 
+
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
-__credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
+__credits__ = [
+    "Paul McGuire", "Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev",
+    "Grant Hulegaard"
+]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
@@ -49,7 +54,14 @@ def set_line_number(string, location, tokens):
 
 class NginxConfigParser(object):
     """
-    Nginx config parser based on https://github.com/fatiherikli/nginxparser
+    Nginx config parser originally based on https://github.com/fatiherikli/nginxparser
+
+    Heavily customized and extended by Amplify team.
+
+    Optimized by Paul McGuire author of the pyparsing library (https://www.linkedin.com/in/ptmcg).  Paul's
+    optimizations (with minor compatibility tweaks during incorporation by Amplify team) resulted in over a 50%
+    performance improvement (~59%).
+
     Parses single file into json structure
     """
 
@@ -65,35 +77,49 @@ class NginxConfigParser(object):
     right_brace = Literal("}").suppress()
     right_parentheses = Literal(")").suppress()
     semicolon = Literal(";").suppress()
-    space = White().suppress()
+    # space = White().suppress()
     singleQuote = Literal("'").suppress()
     doubleQuote = Literal('"').suppress()
 
-    # keys
-    if_key = Keyword("if").setParseAction(set_line_number)
-    set_key = Keyword("set").setParseAction(set_line_number)
-    rewrite_key = Keyword("rewrite").setParseAction(set_line_number)
-    perl_set_key = Keyword("perl_set").setParseAction(set_line_number)
-    log_format_key = Keyword("log_format").setParseAction(set_line_number)
-    alias_key = Keyword("alias").setParseAction(set_line_number)
-    return_key = Keyword("return").setParseAction(set_line_number)
-    error_page_key = Keyword("error_page").setParseAction(set_line_number)
-    map_key = Keyword("map").setParseAction(set_line_number)
-    server_name_key = Keyword("server_name").setParseAction(set_line_number)
-    sub_filter_key = Keyword("sub_filter").setParseAction(set_line_number)
-    add_header_key = Keyword("add_header").setParseAction(set_line_number)
+    # keywords
+    IF, SET, REWRITE, PERL_SET, LOG_FORMAT, ALIAS, RETURN, ERROR_PAGE, MAP, SERVER_NAME, SUB_FILTER, ADD_HEADER = (
+        map(
+            lambda x: x.setParseAction(set_line_number),
+            map(
+                Keyword,
+                "if set rewrite perl_set log_format alias return "
+                "error_page map server_name sub_filter add_header".split()
+            )
+        )
+    )
+
+    # IF = Keyword('if').setParseAction(set_line_number)
+    # SET = Keyword('set').setParseAction(set_line_number)
+    # REWRITE = Keyword('rewrite').setParseAction(set_line_number)
+    # PERL_SET = Keyword('perl_set').setParseAction(set_line_number)
+    # LOG_FORMAT = Keyword('log_format').setParseAction(set_line_number)
+    # ALIAS = Keyword('alias').setParseAction(set_line_number)
+    # RETURN = Keyword('return').setParseAction(set_line_number)
+    # ERROR_PAGE = Keyword('error_page').setParseAction(set_line_number)
+    # MAP = Keyword('map').setParseAction(set_line_number)
+    # SERVER_NAME = Keyword('server_name').setParseAction(set_line_number)
+    # SUB_FILTER = Keyword('sub_filter').setParseAction(set_line_number)
+    # ADD_HEADER = Keyword('add_header').setParseAction(set_line_number)
 
     # lua keys
     start_with_lua_key = Regex(r'lua_\S+').setParseAction(set_line_number)
     contains_by_lua_key = Regex(r'\S+_by_lua\S*').setParseAction(set_line_number)
 
     key = (
-        ~map_key & ~alias_key & ~perl_set_key &
-        ~if_key & ~set_key & ~rewrite_key & ~server_name_key & ~sub_filter_key
+        ~MAP & ~ALIAS & ~PERL_SET & ~IF & ~SET & ~REWRITE & ~SERVER_NAME & ~SUB_FILTER
     ) + Word(alphanums + '$_:%?"~<>\/-+.,*()[]"' + "'").setParseAction(set_line_number)
 
+    # For some reason this version from Paul McGuire does not trigger "set_line_number"...but the above does
+    # key = ~(MAP | ALIAS | PERL_SET | IF | SET | REWRITE | SERVER_NAME | SUB_FILTER) + \
+    #     Word(alphanums + '$_:%?"~<>\/-+.,*()[]"' + "'").setParseAction(set_line_number)
+
     # values
-    value_string = Regex(r'"([^"]|\s)*\"')  # string value repurposed from map types
+    value_string = QuotedString('"')  # Regex(r'"([^"]|\s)*\"')  # string value repurposed from map types
     value_one = Regex(r'[^{};]*"[^\";]+"[^{};]*')
     value_two = Regex(r'[^{};]*\'[^\';]+\'')
     value_three = Regex(r'[^{};]+((\${[\d|\w]+(?=})})|[^{};])+')
@@ -103,80 +129,84 @@ class NginxConfigParser(object):
     rewrite_value = CharsNotIn(";").setParseAction(set_line_number)
     any_value = CharsNotIn(";").setParseAction(set_line_number)
     non_space_value = Regex(r'[^\'\";\s]+').setParseAction(set_line_number)
-    if_value = Regex(r'\(.*\)').setParseAction(set_line_number)
+    if_value = nestedExpr().setParseAction(set_line_number)  # Regex(r'\(.*\)')
     language_include_value = CharsNotIn("'").setParseAction(set_line_number)
     strict_value = CharsNotIn("{};").setParseAction(set_line_number)
-    sub_filter_value = (non_space_value | Regex(r"\'(.|\n)+?\'",)).setParseAction(set_line_number)
+    sub_filter_value = (non_space_value | Regex(r"\'(.|\n)+?\'", )).setParseAction(set_line_number)
     add_header_value = Regex('[^{};]*".+?"').setParseAction(set_line_number)
 
     # map values
-    map_value_one = Regex(r'\'([^\']|\s)*\'')
+    map_value_one = QuotedString("'")  # Regex(r'\'([^\']|\s)*\'')
     map_value_two = value_string
     map_value_three = Regex(r'((\\\s|[^{};\s])*)')
     map_value = (map_value_one | map_value_two | map_value_three).setParseAction(set_line_number)
 
     # modifier for location uri [ = | ~ | ~* | ^~ ]
-    modifier = Literal("=") | Literal("~*") | Literal("~") | Literal("^~")
-
-    # rules
+    # ~ modifier = Literal("=") | Literal("~*") | Literal("~") | Literal("^~")
+    modifier = oneOf("= ~* ~ ^~")
     assignment = (
-        key + Optional(space) + Optional(value) +
-        Optional(space) + Optional(value) + Optional(space) + semicolon
-
+        key + Optional(value + Optional(value)) + semicolon
+        #
+        # could also write as
+        # key + value*(0,2) + semicolon
     ).setParseAction(set_line_number)
 
     set = (
-        set_key + Optional(space) + any_value + Optional(space) + semicolon
+        SET + any_value + semicolon
     ).setParseAction(set_line_number)
 
     rewrite = (
-        rewrite_key + Optional(space) + rewrite_value + Optional(space) + semicolon
+        REWRITE + rewrite_value + semicolon
     ).setParseAction(set_line_number)
 
     perl_set = (
-        perl_set_key + Optional(space) + key + Optional(space) +
-        singleQuote + language_include_value + singleQuote + Optional(space) + semicolon
+        PERL_SET + key +
+        (QuotedString("'", multiline=True) | QuotedString('"', multiline=True)) +
+        semicolon
+        # ~ singleQuote + language_include_value + singleQuote + semicolon
     ).setParseAction(set_line_number)
 
     lua_content = (
-        (start_with_lua_key | contains_by_lua_key) + Optional(space) +
-        singleQuote + language_include_value + singleQuote + Optional(space) + semicolon
+        (start_with_lua_key | contains_by_lua_key) +
+        (QuotedString("'", multiline=True) | QuotedString('"', multiline=True)) +
+        semicolon
+        # ~ singleQuote + language_include_value + singleQuote + semicolon
     ).setParseAction(set_line_number)
 
     alias = (
-        alias_key + space + any_value + Optional(space) + semicolon
+        ALIAS + any_value + semicolon
     ).setParseAction(set_line_number)
 
     return_ = (
-        (return_key | error_page_key) + space + value + Optional(space) + Optional(any_value) + Optional(space) + semicolon
+        (RETURN | ERROR_PAGE) + value + Optional(any_value) + semicolon
     ).setParseAction(set_line_number)
 
     log_format = (
-        log_format_key + Optional(space) + strict_value + Optional(space) + any_value + Optional(space) + semicolon
+        LOG_FORMAT + strict_value + any_value + semicolon
     ).setParseAction(set_line_number)
 
     server_name = (
-        server_name_key + space + any_value + Optional(space) + semicolon
+        SERVER_NAME + any_value + semicolon
     ).setParseAction(set_line_number)
 
     sub_filter = (
-        sub_filter_key + space + sub_filter_value + space + sub_filter_value + Optional(space) + semicolon
+        SUB_FILTER + sub_filter_value + sub_filter_value + semicolon
     ).setParseAction(set_line_number)
 
     add_header = (
-        add_header_key + space + non_space_value + space + add_header_value + Optional(space) + semicolon
+        ADD_HEADER + non_space_value + add_header_value + semicolon
     ).setParseAction(set_line_number)
 
     # script
     map_block = Forward()
     map_block << Group(
         Group(
-            map_key + space + map_value + space + map_value + Optional(space)
+            MAP + map_value + map_value
         ).setParseAction(set_line_number) +
         left_brace +
         Group(
             ZeroOrMore(
-                Group(map_value + Optional(space) + Optional(map_value) + Optional(space) + semicolon)
+                Group(map_value + Optional(map_value) + semicolon)
             ).setParseAction(set_line_number)
         ) +
         right_brace
@@ -186,19 +216,18 @@ class NginxConfigParser(object):
     block << Group(
         (
             Group(
-                key + Optional(space + modifier) + Optional(space) +
-                Optional(value) + Optional(space) +
-                Optional(value) + Optional(space)
+                key + Optional(modifier) +
+                Optional(value + Optional(value))
             ) |
-            Group(if_key + space + if_value + Optional(space))
+            Group(IF + if_value)
         ).setParseAction(set_line_number) +
-        left_brace +
+        left_brace -  # <----- use '-' operator instead of '+' to get better error messages
         Group(
             ZeroOrMore(
-                 Group(add_header) | Group(log_format) | Group(lua_content) | Group(perl_set) |
-                 Group(set) | Group(rewrite) | Group(alias) | Group(return_) |
-                 Group(assignment) | Group(server_name) | Group(sub_filter) |
-                 map_block | block
+                Group(add_header) | Group(log_format) | Group(lua_content) | Group(perl_set) |
+                Group(set) | Group(rewrite) | Group(alias) | Group(return_) |
+                Group(assignment) | Group(server_name) | Group(sub_filter) |
+                map_block | block
             ).setParseAction(set_line_number)
         ).setParseAction(set_line_number) +
         right_brace
@@ -517,6 +546,12 @@ class NginxConfigParser(object):
                     else:
                         # compound key (for locations and upstreams for example)
 
+                        # with some changes to how we use pyparse we now might get "ParseResults" back...handle it here
+                        # typically occurs on "if" statements/blocks
+                        if not isinstance(key_bucket[1], (str, unicode)):
+                            parse_results = key_bucket.pop()
+                            key_bucket += parse_results
+
                         # remove all redundant spaces
                         parts = filter(lambda x: x, ' '.join(key_bucket[1:]).split(' '))
                         sub_key = ' '.join(parts)
@@ -541,6 +576,9 @@ class NginxConfigParser(object):
                     if """\'""" in value or """\n""" in value:
                         value = re.sub(r"\'\s*\n\s*\'", '', value)
                         value = re.sub(r"\'", "'", value)
+
+                    # remove spaces
+                    value = value.strip()
 
                     if key in IGNORED_DIRECTIVES:
                         continue  # Pass ignored directives.
@@ -601,6 +639,11 @@ class NginxConfigParser(object):
 
     def __idx_save(self, value, file_index, line):
         new_index = len(self.index)
+
+        # For performance, we should handle extra spaces in business logic instead of in pyparsing
+        if isinstance(value, (str, unicode)):
+            value = value.strip()
+
         self.index.append((file_index, line))
         return value, new_index
 
@@ -627,7 +670,7 @@ class NginxConfigParser(object):
                 result[key] = [stored_value, indexed_value]
         else:
             result[key] = indexed_value
-    
+
     def simplify(self, tree=None):
         """
         returns tree without index references

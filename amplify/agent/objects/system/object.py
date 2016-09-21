@@ -27,13 +27,12 @@ class SystemObject(AbstractObject):
         self.uuid = self.data['uuid']
         setattr(self, self.hosttype, self.data[self.hosttype])
 
-        self.collectors = []
         self._setup_meta_collector()
         self._setup_metrics_collector()
 
     @property
     def definition(self):
-        return  {'type': self.type, 'uuid': self.uuid, self.hosttype: getattr(self, self.hosttype)}
+        return {'type': self.type, 'uuid': self.uuid, self.hosttype: getattr(self, self.hosttype)}
 
     def _setup_meta_collector(self):
         collector_cls = self._import_collector_class('system', 'meta')

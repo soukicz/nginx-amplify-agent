@@ -51,8 +51,9 @@ class NginxObject(AbstractObject):
         # filters
         self.filters = [Filter(**raw_filter) for raw_filter in self.data.get('filters') or []]
 
-        self.config = NginxConfig(self.conf_path, prefix=self.prefix)
-        self.config.full_parse()
+        # nginx config
+        self.config = NginxConfig(self.conf_path, prefix=self.prefix, binary=self.bin_path)
+        self._setup_config_collector()
 
         # plus status
         self.plus_status_external_url, self.plus_status_internal_url = self.get_alive_plus_status_urls()
@@ -64,10 +65,8 @@ class NginxObject(AbstractObject):
 
         self.processes = []
 
-        self.collectors = []
         self._setup_meta_collector()
         self._setup_metrics_collector()
-        self._setup_config_collector()
         self._setup_access_logs()
         self._setup_error_logs()
 
@@ -178,11 +177,9 @@ class NginxObject(AbstractObject):
         )
 
     def _setup_config_collector(self):
-        self.collectors.append(
-            NginxConfigCollector(
-                object=self, interval=self.intervals['configs'],
-            )
-        )
+        collector = NginxConfigCollector(object=self, interval=self.intervals['configs'])
+        collector.collect() # run initial parse
+        self.collectors.append(collector)
 
     def _setup_access_logs(self):
         # access logs

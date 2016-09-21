@@ -129,9 +129,12 @@ class RealNginxTestCase(BaseTestCase):
         super(RealNginxTestCase, self).setup_method(method)
         self.second_started = False
         subp.call('service nginx start')
+        self.running = True
 
     def teardown_method(self, method):
-        subp.call('pgrep nginx |sudo xargs kill -SIGKILL')
+        if self.running:
+            subp.call('pgrep nginx |sudo xargs kill -SIGKILL')
+            self.running = False
         super(RealNginxTestCase, self).teardown_method(method)
 
     def reload_nginx(self):

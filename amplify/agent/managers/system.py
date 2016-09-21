@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from amplify.agent.common.context import context
+from amplify.agent.common.util.system import get_root_definition
 from amplify.agent.managers.abstract import ObjectManager
 from amplify.agent.objects.system.object import SystemObject, ContainerSystemObject
 
@@ -10,6 +10,12 @@ __credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", 
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
+
+
+SYSTEM_OBJECT_MAP = {
+    'system': SystemObject,
+    'container': ContainerSystemObject
+}
 
 
 class SystemManager(ObjectManager):
@@ -23,11 +29,8 @@ class SystemManager(ObjectManager):
 
     def _discover_objects(self):
         if not self.objects.find_all(types=self.types):
-            data = {'uuid': context.uuid}
-            if self.in_container:
-                data['imagename'] = context.app_config['credentials']['imagename']
-                sys_object = ContainerSystemObject(data=data)
-            else:
-                data['hostname'] = context.hostname
-                sys_object = SystemObject(data=data)
+            data = get_root_definition()
+
+            sys_object = SYSTEM_OBJECT_MAP[data['type']](data=data)
+
             self.objects.register(sys_object)

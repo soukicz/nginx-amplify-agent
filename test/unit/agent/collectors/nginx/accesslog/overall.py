@@ -58,6 +58,8 @@ class LogsOverallTestCase(NginxCollectorTestCase):
             if counter_key in collector.parser.keys:
                 assert_that(counter, has_key('C|%s' % counter_name))
                 if counter_name not in (
+                    'nginx.http.method.get',
+                    'nginx.http.method.post',
                     'nginx.http.status.2xx',
                     'nginx.http.status.3xx',
                     'nginx.http.status.4xx',
@@ -65,7 +67,7 @@ class LogsOverallTestCase(NginxCollectorTestCase):
                     'nginx.http.request.body_bytes_sent'
                 ):
                     assert_that(counter['C|%s' % counter_name][0][1], equal_to(0))
-            else:
+            elif counter_key is not None:
                 if counter_key not in collector.parser.request_variables:
                     assert_that(counter, not_(has_key('C|%s' % counter_name)))
 
@@ -130,7 +132,7 @@ class LogsOverallTestCase(NginxCollectorTestCase):
                     'nginx.http.request.body_bytes_sent'
                 ):
                     assert_that(counter['C|%s' % counter_name][0][1], equal_to(0))
-            else:
+            elif counter_key is not None:
                 if counter_key not in collector.parser.request_variables:
                     assert_that(counter, not_(has_key('C|%s' % counter_name)))
 
@@ -198,7 +200,7 @@ class LogsOverallTestCase(NginxCollectorTestCase):
                     'nginx.http.request.body_bytes_sent'
                 ):
                     assert_that(counter['C|%s' % counter_name][0][1], equal_to(0))
-            else:
+            elif counter_key is not None:
                 if counter_key not in collector.parser.request_variables:
                     assert_that(counter, not_(has_key('C|%s' % counter_name)))
 
@@ -261,7 +263,7 @@ class LogsOverallTestCase(NginxCollectorTestCase):
                     'nginx.http.v1_0'
                 ):
                     assert_that(counter['C|%s' % counter_name][0][1], equal_to(0))
-            else:
+            elif counter_key is not None:
                 if counter_key not in collector.parser.request_variables:
                     assert_that(counter, not_(has_key('C|%s' % counter_name)))
 

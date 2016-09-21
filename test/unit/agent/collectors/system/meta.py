@@ -53,9 +53,18 @@ class MetaParsersTestCase(BaseTestCase):
             else:
                 down_interfaces.add(interface_name)
 
-        # check intefaces
+        # check interfaces
         collected_interfaces = os_obj.metad.current['network']['interfaces']
         for interface_info in collected_interfaces:
+            assert_that(interface_info, has_key('name'))
+            assert_that(interface_info, has_key('mac'))
+
+            assert_that(interface_info, has_key('ipv4'))
+            ipv4 = interface_info['ipv4']
+            assert_that(ipv4, has_key('netmask'))
+            assert_that(ipv4, has_key('address'))
+            assert_that(ipv4, has_key('prefixlen'))
+
             name = interface_info['name']
             assert_that(all_interfaces, has_item(name))
             assert_that(alive_interfaces, has_item(name))

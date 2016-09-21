@@ -55,22 +55,22 @@ class LogsFiltersTestCase(NginxCollectorTestCase):
 
     def test_simple_filter(self):
         self.fake_object.filters = [
-            Filter(**dict(
+            Filter(
                 filter_rule_id=1,
                 metric='nginx.http.status.2xx',
                 data=[
                     {'$request_method': 'GET'},
                     {'$status': '200'}
                 ]
-            )),
-            Filter(**dict(
+            ),
+            Filter(
                 filter_rule_id=2,
                 metric='nginx.http.request.body_bytes_sent',
                 data=[
                     {'$request_uri': '/img*'},
                     {'$server_protocol': 'HTTP/1.2'}
                 ]
-            ))
+            )
         ]
 
         collector = NginxAccessLogsCollector(object=self.fake_object, tail=self.lines)
@@ -95,16 +95,44 @@ class LogsFiltersTestCase(NginxCollectorTestCase):
         # filter values
         assert_that(counter['C|nginx.http.status.2xx||1'][0][1], equal_to(2))
 
+    def test_unused_filter_defaults_zero(self):
+        self.fake_object.filters = [
+            Filter(filter_rule_id=1, metric='nginx.http.status.4xx', data=[{'status': '416'}]),
+            Filter(filter_rule_id=2, metric='nginx.http.status.4xx', data=[{'status': '300'}]),
+            Filter(filter_rule_id=3, metric='nginx.http.method.get', data=[{'$request_uri': '/img.*'}]),
+            Filter(filter_rule_id=4, metric='nginx.http.method.get', data=[{'$request_uri': 'abcdef'}]),
+        ]
+
+        collector = NginxAccessLogsCollector(object=self.fake_object, tail=self.lines)
+        collector.collect()
+
+        # check
+        metrics = self.fake_object.statsd.flush()['metrics']
+        assert_that(metrics, has_item('counter'))
+
+        # counters
+        counter = metrics['counter']
+
+        # filter values
+        assert_that(counter, has_key('C|nginx.http.status.4xx||1'))
+        assert_that(counter, has_key('C|nginx.http.status.4xx||2'))
+        assert_that(counter, has_key('C|nginx.http.method.get||3'))
+        assert_that(counter, has_key('C|nginx.http.method.get||4'))
+        assert_that(counter['C|nginx.http.status.4xx||1'], contains(contains(is_(int), 1)))
+        assert_that(counter['C|nginx.http.status.4xx||2'], contains(contains(is_(int), 0)))
+        assert_that(counter['C|nginx.http.method.get||3'], contains(contains(is_(int), 2)))
+        assert_that(counter['C|nginx.http.method.get||4'], contains(contains(is_(int), 0)))
+
     def test_regex_filter(self):
         self.fake_object.filters = [
-            Filter(**dict(
+            Filter(
                 filter_rule_id=2,
                 metric='nginx.http.request.body_bytes_sent',
                 data=[
                     {'$request_uri': '/img.*'},
                     {'$server_protocol': 'HTTP/1.2'}
                 ]
-            ))
+            )
         ]
 
         collector = NginxAccessLogsCollector(object=self.fake_object, tail=self.lines)
@@ -131,13 +159,13 @@ class LogsFiltersTestCase(NginxCollectorTestCase):
 
     def test_server_name(self):
         self.fake_object.filters = [
-            Filter(**dict(
+            Filter(
                 filter_rule_id=2,
                 metric='nginx.http.status.2xx',
                 data=[
                     {u'$server_name': u'differentsimgirls.com'}
                 ]
-            ))
+            )
         ]
 
         collector = NginxAccessLogsCollector(

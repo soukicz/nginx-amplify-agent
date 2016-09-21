@@ -42,7 +42,7 @@ class Filter(object):
                     normalized_key = k.replace('$', '')
                     self.data[normalized_key] = normalized_value
 
-        self.empty = False if (self.data or self.filename) else True
+        self.empty = not self.data and not self.filename
 
     def match(self, parsed):
         """
@@ -50,16 +50,13 @@ class Filter(object):
         :param parsed: {} of parsed string
         :return: True of False
         """
-        result = True
         for filter_key, filter_value in self.data.iteritems():
-            key_matched = False
-            if filter_key in parsed:
-                value = str(parsed[filter_key])
-                if isinstance(filter_value, str) and filter_value == value:
-                    key_matched = True
-                elif isinstance(filter_value, RE_TYPE) and re.match(filter_value, value):
-                    key_matched = True
-            if not key_matched:
-                result = False
-                break
-        return result
+            if filter_key not in parsed:
+                return False
+
+            value = str(parsed[filter_key])
+            if not (isinstance(filter_value, str) and filter_value == value):
+                if not (isinstance(filter_value, RE_TYPE) and re.match(filter_value, value)):
+                    return False
+
+        return True

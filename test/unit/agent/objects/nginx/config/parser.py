@@ -34,6 +34,7 @@ quoted_location_with_semicolon = os.getcwd() + '/test/fixtures/nginx/quoted_loca
 
 class ParserTestCase(BaseTestCase):
 
+    # line number for stub status may be off?  69 not 68...
     def test_parse_simple(self):
         cfg = NginxConfigParser(simple_config)
 
@@ -83,11 +84,15 @@ class ParserTestCase(BaseTestCase):
         worker_connections_index = indexed_tree['events'][0]['worker_connections'][1]
         basic_status_index = indexed_tree['http'][0]['server'][1][0]['location']['/basic_status'][1]
         stub_status_in_basic_index = indexed_tree['http'][0]['server'][1][0]['location']['/basic_status'][0]['stub_status'][1]
+        plus_status_in_basic_index = indexed_tree['http'][0]['server'][1][0]['location']['/plus_status'][0]['status'][1]
+        rewrite_in_basic_index = indexed_tree['http'][0]['server'][1][0]['rewrite'][1]
         proxy_pass_index = indexed_tree['http'][0]['server'][0][0]['location']['/'][0]['proxy_pass'][1]
 
         assert_that(cfg.index[worker_connections_index], equal_to((0, 6)))  # root file, line number 6
-        assert_that(cfg.index[basic_status_index], equal_to((0, 67)))  # root file, line number 65
-        assert_that(cfg.index[stub_status_in_basic_index], equal_to((0, 69)))  # root file, line number 66
+        assert_that(cfg.index[basic_status_index], equal_to((0, 67)))  # root file, line number 67
+        assert_that(cfg.index[stub_status_in_basic_index], equal_to((0, 69)))  # root file, line number 69
+        assert_that(cfg.index[plus_status_in_basic_index], equal_to((0, 72)))  # root file, line number 72
+        assert_that(cfg.index[rewrite_in_basic_index]), equal_to((0, 75))  # root file, line number 75
         assert_that(cfg.index[proxy_pass_index], equal_to((2, 13)))  # third loaded file, line number 13
 
     def test_parse_huge(self):
@@ -110,7 +115,7 @@ class ParserTestCase(BaseTestCase):
 
         # map
         http_map = http['map']
-        assert_that(http_map, equal_to({'$dirname $diruri': {'default': '"dirindex.html"', 'include': ['"dir.map"']}}))
+        assert_that(http_map, equal_to({'$dirname $diruri': {'default': 'dirindex.html', 'include': ['dir.map']}}))
 
         # check index tree
         books_location_index = indexed_tree['http'][0]['server'][2][0]['location']['/books/'][1]
@@ -202,7 +207,7 @@ class ParserTestCase(BaseTestCase):
 
         # maps
         assert_that(http['map']['$http_user_agent $device'], has_key('~*Nexus\\ One|Nexus\\ S'))
-        assert_that(http['map']['$http_referer $bad_referer'], has_key('"~* move-"'))
+        assert_that(http['map']['$http_referer $bad_referer'], has_key('~* move-'))
 
     def test_parse_ssl(self):
         """

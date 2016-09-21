@@ -8,6 +8,7 @@ from amplify.agent.common.util import subp
 from amplify.agent.common.context import context
 from amplify.agent.managers.nginx import NginxManager
 from test.base import RealNginxTestCase, BaseTestCase, container_test
+from test.helpers import DummyRootObject
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -107,6 +108,25 @@ class NginxManagerTestCase(RealNginxTestCase):
 
         local_ids = map(lambda x: x.local_id, container.objects.find_all(types=container.types))
         assert_that(local_ids, has_item(obj.local_id))
+
+    def test_find_none(self):
+        # Kill running NGINX so that it finds None
+        subp.call('pgrep nginx |sudo xargs kill -SIGKILL', check=False)
+        self.running = False
+
+        # Setup dummy object
+        context.objects.register(DummyRootObject())
+
+        container = NginxManager()
+        nginxes = container._find_all()
+        assert_that(nginxes, has_length(0))
+
+        root_object = context.objects.root_object
+        assert_that(root_object.eventd.current, has_length(1))
+
+        # Reset objects...
+        context.objects = None
+        context._setup_object_tank()
 
 
 @container_test

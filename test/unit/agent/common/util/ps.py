@@ -35,7 +35,7 @@ class PsutilsTestCase(RealNginxTestCase):
         self.nginx_obj = self.nginx_manager.objects.objects[
             self.nginx_manager.objects.objects_by_type[self.nginx_manager.type][0]
         ]
-        self.nginx_metrics_collector = self.nginx_obj.collectors[1]
+        self.nginx_metrics_collector = self.nginx_obj.collectors[2]
 
     def teardown_method(self, method):
         self.system_manager = None

@@ -145,11 +145,11 @@ class SystemMetaCollector(AbstractMetaCollector):
                     protocol_data = addresses.get(key, [{}])[0]
                     if protocol_data:
                         interface_info[proto] = {
-                            'addr': protocol_data.get('addr').split('%').pop(0),
+                            'address': protocol_data.get('addr').split('%').pop(0),
                             'netmask': protocol_data.get('netmask')
                         }
                         try:
-                            address = '%(addr)s/%(netmask)s' % interface_info[proto]
+                            address = '%(address)s/%(netmask)s' % interface_info[proto]
                             interface_info[proto]['prefixlen'] = netaddr.IPNetwork(address).prefixlen
                         except:
                             interface_info[proto]['prefixlen'] = None

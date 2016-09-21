@@ -17,7 +17,7 @@ __email__ = "dedm@nginx.com"
 class NginxErrorLogsCollector(AbstractCollector):
     short_name = 'nginx_elog'
 
-    counters = (
+    zero_counters = (
         'nginx.http.request.buffered',
         'nginx.upstream.response.buffered',
         'nginx.upstream.request.failed',
@@ -31,10 +31,6 @@ class NginxErrorLogsCollector(AbstractCollector):
         self.parser = NginxErrorLogParser()
         self.tail = tail if tail is not None else FileTail(filename)
         self.register(self.error_log_parsed)
-
-    def init_counters(self):
-        for counter in self.counters:
-            self.object.statsd.incr(counter, value=0)
 
     def collect(self):
         # If log_level is <= warn (e.g. debug, info, notice, warn)

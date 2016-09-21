@@ -134,7 +134,13 @@ class AbstractObject(object):
         :return: A collector class that corresponds with the host's distribution
         """
         distribution = host.linux_name()
-        distribution = {'ubuntu': '', 'rhel': 'centos'}.get(distribution, distribution)
+        distribution = {
+            'ubuntu': '',
+            'amzn': 'centos',
+            'rhel': 'centos',
+            'fedora': 'centos',
+            'sles': 'centos'
+        }.get(distribution, '')
 
         class_name = distribution.title() + type.title() + target.title() + 'Collector'
         class_path = 'amplify.agent.collectors.%s.%s.%s' % (type.lower(), target.lower(), class_name)

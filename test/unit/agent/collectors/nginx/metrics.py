@@ -24,9 +24,8 @@ class NginxMetricsTestCase(RealNginxTestCase):
         # get nginx object
         nginx_obj = container.objects.objects[container.objects.objects_by_type[container.type][0]]
 
-        # get metrics collector - the second from the list
-        collectors = nginx_obj.collectors
-        metrics_collector = collectors[1]
+        # get metrics collector - the third in the list
+        metrics_collector = nginx_obj.collectors[2]
 
         # run plus status - twice, because counters will appear only on the second run
         metrics_collector.stub_status()
@@ -61,9 +60,8 @@ class NginxMetricsTestCase(RealNginxTestCase):
         # get nginx object
         nginx_obj = container.objects.objects[container.objects.objects_by_type[container.type][0]]
 
-        # get metrics collector - the second from the list
-        collectors = nginx_obj.collectors
-        metrics_collector = collectors[1]
+        # get metrics collector - the third in the list
+        metrics_collector = nginx_obj.collectors[2]
 
         # run plus status - twice, because counters will appear only on the second run
         metrics_collector.plus_status()
@@ -103,9 +101,8 @@ class NginxMetricsTestCase(RealNginxTestCase):
         assert_that(nginx_obj.plus_status_enabled, equal_to(True))
         assert_that(nginx_obj.stub_status_enabled, equal_to(True))
 
-        # get metrics collector - the second from the list
-        collectors = nginx_obj.collectors
-        metrics_collector = collectors[1]
+        # get metrics collector - the third in the list
+        metrics_collector = nginx_obj.collectors[2]
 
         # run status twice
         metrics_collector.status()

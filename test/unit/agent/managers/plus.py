@@ -37,9 +37,8 @@ class PlusManagerTestCase(RealNginxTestCase):
         # get nginx object
         nginx_obj = nginx_manager.objects.objects[nginx_manager.objects.objects_by_type[nginx_manager.type][0]]
 
-        # get metrics collector - the second from the list
-        collectors = nginx_obj.collectors
-        metrics_collector = collectors[1]
+        # get metrics collector - the third in the list
+        metrics_collector = nginx_obj.collectors[2]
 
         # run plus status - twice, because counters will appear only on the second run
         metrics_collector.plus_status()

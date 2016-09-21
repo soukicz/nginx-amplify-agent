@@ -138,6 +138,12 @@ fi
 
 
 %changelog
+* Tue Sep 20 2016 Mike Belov <dedm@nginx.com> 0.39-1gid
+- 0.39-1
+- Config parser improvements
+- Log parser improvements
+- Bug fixes
+
 * Thu Aug 25 2016 Mike Belov <dedm@nginx.com> 0.38-1
 - 0.38-1
 - FreeBSD support

@@ -53,5 +53,5 @@ class LogsOverallTestCase(NginxCollectorTestCase):
         assert_that(counter['C|nginx.upstream.response.buffered'][0][1], equal_to(1))
 
         # check zero values
-        for error_counter in collector.counters:
+        for error_counter in collector.zero_counters:
             assert_that(counter, has_key('C|%s' % error_counter))

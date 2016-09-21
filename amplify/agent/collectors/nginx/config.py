@@ -27,11 +27,7 @@ class NginxConfigCollector(AbstractCollector):
 
     def collect(self):
         try:
-            config = NginxConfig(
-                self.object.conf_path,
-                binary=self.object.bin_path,
-                prefix=self.object.prefix
-            )
+            config = self.object.config
 
             # check if config is changed (changes are: new files/certs, new mtimes)
             config_files, config_dirs = config.collect_structure(include_ssl_certs=self.object.upload_ssl)
