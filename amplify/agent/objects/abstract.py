@@ -140,7 +140,7 @@ class AbstractObject(object):
             'rhel': 'centos',
             'fedora': 'centos',
             'sles': 'centos'
-        }.get(distribution, '')
+        }.get(distribution, distribution)
 
         class_name = distribution.title() + type.title() + target.title() + 'Collector'
         class_path = 'amplify.agent.collectors.%s.%s.%s' % (type.lower(), target.lower(), class_name)
