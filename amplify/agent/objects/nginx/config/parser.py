@@ -7,7 +7,7 @@ from itertools import izip
 from pyparsing import (
     Regex, Keyword, Literal, White, Word, alphanums, CharsNotIn, Forward, Group,
     Optional, OneOrMore, ZeroOrMore, pythonStyleComment, lineno, LineStart, LineEnd,
-    oneOf, QuotedString, nestedExpr, ParserElement
+    oneOf, QuotedString, nestedExpr, ParserElement, ParseResults
 )
 
 from amplify.agent.common.context import context
@@ -523,7 +523,7 @@ class NginxConfigParser(object):
             while len(rows):
                 row = rows.pop(0)
                 row_as_list = row.asList()
-                
+
                 if isinstance(row_as_list[0], list):
                     # this is a new key
                     key_bucket, value_bucket = row
@@ -546,11 +546,24 @@ class NginxConfigParser(object):
                     else:
                         # compound key (for locations and upstreams for example)
 
+                        def flatten(l):
+                            """Helper function that flattens a list of lists into a single list"""
+                            flattened = []
+                            for element in l:
+                                if not isinstance(element, list):
+                                    flattened.append(element)
+                                elif isinstance(element, ParseResults):
+                                    flattened += flatten(element.asList())
+                                else:
+                                    flattened += flatten(element)
+                            return flattened
+
                         # with some changes to how we use pyparse we now might get "ParseResults" back...handle it here
                         # typically occurs on "if" statements/blocks
                         if not isinstance(key_bucket[1], (str, unicode)):
+                            key_bucket = key_bucket.asList() if isinstance(key_bucket, ParseResults) else key_bucket
                             parse_results = key_bucket.pop()
-                            key_bucket += parse_results
+                            key_bucket += flatten(parse_results)
 
                         # remove all redundant spaces
                         parts = filter(lambda x: x, ' '.join(key_bucket[1:]).split(' '))

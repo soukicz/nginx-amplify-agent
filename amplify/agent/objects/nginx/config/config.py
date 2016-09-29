@@ -68,8 +68,23 @@ class NginxConfig(object):
         context.log.debug('parsing full tree of %s' % self.filename)
 
         # parse raw data
-        self.parser.parse()
+        try:
+            self.parser.parse()
+            self._handle_parse()
+        except Exception as e:
+            context.log.error('failed to parse config at %s (due to %s)' % (self.filename, e.__class__.__name__))
+            context.log.debug('additional info:', exc_info=True)
+            self.parser = NginxConfigParser(self.filename)  # Re-init parser to discard partial data (if any)
 
+        # Post-handling
+
+        # try to locate and use default logs (PREFIX/logs/*)
+        self.add_default_logs()
+
+        # Go through log files and apply exclude rules (log files are added during .__colect_data()
+        self._exclude_logs()
+
+    def _handle_parse(self):
         self.tree = self.parser.tree
         self.files = self.parser.files
         self.directories = self.parser.directories
@@ -79,12 +94,6 @@ class NginxConfig(object):
 
         # go through and collect all logical data
         self.__collect_data(subtree=self.parser.simplify())
-
-        # try to locate and use default logs (PREFIX/logs/*)
-        self.add_default_logs()
-
-        # Go through log files and apply exclude rules (log files are added during .__colect_data()
-        self._exclude_logs()
 
     def collect_structure(self, include_ssl_certs=False):
         """
