@@ -178,6 +178,16 @@ class Bridge(AbstractManager):
         results = self._recursive_object_flush(objects_structure, clients=clients) if objects_structure else None
         return results
 
+    @staticmethod
+    def _empty_flush(flush_dict):
+        """Helper for determining whether or not a flush payload is empty or not.  Checks to see if _any_ key other
+        than object was included in the flush payload and assumes it is non-empty if so."""
+        empty = True
+        for key in flush_dict.keys():
+            if key != 'object':
+                empty = False
+        return empty
+
     def _recursive_object_flush(self, tree, clients=None):
         results = {}
 
@@ -195,7 +205,7 @@ class Bridge(AbstractManager):
             if children_results:
                 results['children'] = children_results
 
-        if results:
+        if not self._empty_flush(results):
             return results
 
     def _reset_payload(self):

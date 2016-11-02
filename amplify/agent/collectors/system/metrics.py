@@ -29,8 +29,9 @@ class SystemMetricsCollector(AbstractMetricsCollector):
         super(SystemMetricsCollector, self).__init__(**kwargs)
         self.register(
             self.agent,
-            self.container,
             self.agent_cpu,
+            self.agent_memory_info,
+            self.container,
             self.virtual_memory,
             self.swap,
             self.cpu,
@@ -55,6 +56,17 @@ class SystemMetricsCollector(AbstractMetricsCollector):
         user, system = context.psutil_process.cpu_percent()
         self.object.statsd.gauge('amplify.agent.cpu.user', user)
         self.object.statsd.gauge('amplify.agent.cpu.system', system)
+
+    def agent_memory_info(self):
+        """
+        agent memory info
+
+        amplify.agent.mem.rss
+        amplify.agent.mem.vms
+        """
+        mem_info = context.psutil_process.memory_info()
+        self.object.statsd.gauge('amplify.agent.mem.rss', mem_info.rss)
+        self.object.statsd.gauge('amplify.agent.mem.vms', mem_info.vms)
 
     def virtual_memory(self):
         """ virtual memory """

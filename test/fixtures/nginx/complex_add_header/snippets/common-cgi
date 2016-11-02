@@ -1,0 +1,13 @@
+	try_files $fastcgi_script_name =444;
+
+#	expires epoch;
+
+	set $path_info $fastcgi_path_info;
+
+	fastcgi_param  AUTH_USER    $remote_user;
+	fastcgi_param  REMOTE_USER  $remote_user;
+	fastcgi_param  PATH_INFO    $path_info;
+#	fastcgi_param  HTTP_SCHEME  $scheme;
+	fastcgi_param  HTTP_HOST    $host;
+
+	include fastcgi.conf;

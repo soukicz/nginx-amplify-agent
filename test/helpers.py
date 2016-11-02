@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from hamcrest import *
+
 from test.base import BaseTestCase
 from amplify.agent.objects.abstract import AbstractObject
 
@@ -26,3 +28,11 @@ class DummyRootObject(DummyObject):
     Dummy root object...
     """
     type = 'system'
+
+
+def collected_metric(matcher=None):
+    return only_contains(
+        instance_of(tuple),
+        has_length(2),
+        contains(greater_than(1476820876), matcher or anything())
+    )

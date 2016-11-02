@@ -63,6 +63,7 @@ class NginxConfig(object):
         self.plus_status_external_urls = []
         self.plus_status_internal_urls = []
         self.parser = NginxConfigParser(filename)
+        self.wait_until = 0
 
     def full_parse(self):
         context.log.debug('parsing full tree of %s' % self.filename)
@@ -112,10 +113,7 @@ class NginxConfig(object):
         Returns the total size of a config tree
         :return: int size in bytes
         """
-        result = 0
-        for file_name, file_info in self.files.iteritems():
-            result += file_info['size']
-        return result
+        return sum(file_data['size'] for file_data in self.files.itervalues())
 
     def __collect_data(self, subtree=None, ctx=None):
         """
@@ -139,9 +137,9 @@ class NginxConfig(object):
                     log_level = split_er_log_definition[-1] \
                         if split_er_log_definition[-1] in ERROR_LOG_LEVELS else 'error'  # nginx default log level
                     log_name = re.sub('[\'"]', '', log_name)  # remove all ' and "
-                    if log_name.startswith('syslog'):
-                        continue
-                    elif not log_name.startswith('/'):
+
+                    # if not syslog, assume it is a file...if not starts with '/' assume relative path
+                    if not log_name.startswith('syslog') and not log_name.startswith('/'):
                         log_name = '%s/%s' % (self.prefix, log_name)
 
                     if log_name not in self.error_logs:
@@ -152,14 +150,13 @@ class NginxConfig(object):
                     if ac_log_definition == 'off':
                         continue
 
-                    parts = filter(lambda x: x, ac_log_definition.split(' '))
+                    parts = filter(len, ac_log_definition.split(' '))
                     log_format = None if len(parts) == 1 else parts[1]
                     log_name = parts[0]
                     log_name = re.sub('[\'"]', '', log_name)  # remove all ' and "
 
-                    if log_name.startswith('syslog'):
-                        continue
-                    elif not log_name.startswith('/'):
+                    # if not syslog, assume it is a file...if not starts with '/' assume relative path
+                    if not log_name.startswith('syslog') and not log_name.startswith('/'):
                         log_name = '%s/%s' % (self.prefix, log_name)
 
                     self.access_logs[log_name] = log_format
@@ -325,7 +322,7 @@ class NginxConfig(object):
         """
         if '[' in listen:
             # ipv6
-            addr_port_parts = filter(lambda x: x, listen.rsplit(']', 1))
+            addr_port_parts = filter(len, listen.rsplit(']', 1))
             address = '%s]' % addr_port_parts[0]
 
             if len(addr_port_parts) == 1:  # only address specified, add default 80
@@ -335,7 +332,7 @@ class NginxConfig(object):
                 return address, port
         else:
             # ipv4
-            addr_port_parts = filter(lambda x: x, listen.rsplit(':', 1))
+            addr_port_parts = filter(len, listen.rsplit(':', 1))
 
             if len(addr_port_parts) == 1:
                 # can be address or port only

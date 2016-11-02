@@ -3,7 +3,7 @@ import netifaces
 import os
 import platform
 import re
-import socket
+import net
 import sys
 import uuid as python_uuid
 import psutil
@@ -94,8 +94,8 @@ def hostname():
     # fall back on socket.gethostname()
     if result is None:
         try:
-            socket_hostname = socket.gethostname()
-        except socket.error:
+            socket_hostname = net.gethostname()
+        except net.error:
             socket_hostname = None
         if socket_hostname and is_valid_hostname(socket_hostname):
             result = socket_hostname

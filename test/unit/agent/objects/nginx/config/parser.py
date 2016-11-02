@@ -30,6 +30,7 @@ ssl_simple_config = os.getcwd() + '/test/fixtures/nginx/ssl/simple/nginx.conf'
 sub_filter_config = os.getcwd() + '/test/fixtures/nginx/custom/sub_filter.conf'
 proxy_pass_config = os.getcwd() + '/test/fixtures/nginx/custom/proxy_pass.conf'
 quoted_location_with_semicolon = os.getcwd() + '/test/fixtures/nginx/quoted_location_with_semicolon/nginx.conf'
+complex_add_header = os.getcwd() + '/test/fixtures/nginx/complex_add_header/nginx.conf'
 
 
 class ParserTestCase(BaseTestCase):
@@ -381,3 +382,10 @@ class ParserTestCase(BaseTestCase):
     def test_quoted_location_with_semicolon(self):
         cfg = NginxConfigParser(quoted_location_with_semicolon)
         assert_that(calling(cfg.parse), not_(raises(TypeError)))
+
+    def test_complex_add_header(self):
+        """Test complex definitions for add_header are parsed correctly"""
+        cfg = NginxConfigParser(complex_add_header)
+        cfg.parse()
+
+        assert_that(cfg.errors, has_length(0))

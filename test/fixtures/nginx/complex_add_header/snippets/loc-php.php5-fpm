@@ -1,0 +1,5 @@
+	location ~ [^/]\.php(/|$) {
+		fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+		fastcgi_index index.php;
+		include snippets/common-php5_fpm;
+	}

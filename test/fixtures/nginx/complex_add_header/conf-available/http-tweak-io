@@ -1,0 +1,5 @@
+	sendfile on;
+	aio threads;
+	directio 2m;
+
+	output_buffers 16 64k;

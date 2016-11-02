@@ -18,6 +18,12 @@ https =
 api_url = https://receiver.amplify.nginx.com:443/1.2
 api_timeout = 5.0
 
+[listeners]
+keys = syslog-default
+
+[listener_syslog-default]
+address =
+
 [loggers]
 keys = root,devnull,agent-default
 

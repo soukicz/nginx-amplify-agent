@@ -17,10 +17,13 @@ __maintainer__ = "Grant Hulegaard"
 __email__ = "grant.hulegaard@nginx.com"
 
 
-class AbstractManager(Singleton):
+class AbstractManager(object):
     """
     A manager is an encapsulated body that is spawned by supervisor.  Every manager, regardless of encapsulated purpose
     should have a run action that will be run in a while loop in .start().
+
+    This manager object is also useful for easily encapsulating asynchronous logic.  Much of the encapsulation here
+    is necessary due to our mandatory agent requirements to support Python versions as old as 2.6.
     """
     name = 'abstract_manager'
 
@@ -65,6 +68,10 @@ class AbstractManager(Singleton):
     def stop(self):
         # TODO: Think about whether or not this is necessary.  Managers should probably be receiving thread.kill().
         self.running = False
+
+    def __del__(self):
+        if self.running:
+            self.stop()
 
 
 class ObjectManager(AbstractManager):

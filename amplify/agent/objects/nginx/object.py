@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
+import time
+
 from amplify.agent.collectors.nginx.accesslog import NginxAccessLogsCollector
 from amplify.agent.collectors.nginx.config import NginxConfigCollector
 from amplify.agent.collectors.nginx.errorlog import NginxErrorLogsCollector
 from amplify.agent.collectors.nginx.metrics import NginxMetricsCollector
 
 from amplify.agent.common.context import context
-from amplify.agent.common.util import host, http
+from amplify.agent.common.util import host, http, net
 from amplify.agent.data.eventd import INFO
 from amplify.agent.objects.abstract import AbstractObject
 from amplify.agent.objects.nginx.binary import nginx_v
 from amplify.agent.objects.nginx.config.config import NginxConfig
 from amplify.agent.objects.nginx.filters import Filter
+from amplify.agent.pipelines.syslog import SyslogTail
+from amplify.agent.pipelines.file import FileTail
+
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -52,8 +57,12 @@ class NginxObject(AbstractObject):
         self.filters = [Filter(**raw_filter) for raw_filter in self.data.get('filters') or []]
 
         # nginx config
-        self.config = NginxConfig(self.conf_path, prefix=self.prefix, binary=self.bin_path)
-        self._setup_config_collector()
+        if 'config_data' in self.data:
+            self.config = self.data['config_data']['config']
+            self._restore_config_collector(self.data['config_data']['previous'])
+        else:
+            self.config = NginxConfig(self.conf_path, prefix=self.prefix, binary=self.bin_path)
+            self._setup_config_collector()
 
         # plus status
         self.plus_status_external_url, self.plus_status_internal_url = self.get_alive_plus_status_urls()
@@ -164,6 +173,35 @@ class NginxObject(AbstractObject):
                     context.log.debug('bad response from stub/plus status url %s' % full_url)
         return None
 
+    def __setup_pipeline(self, name):
+        """
+        Sets up a pipeline/tail object for a collector based on "filename".
+
+        :param name: Str
+        :return: Pipeline
+        """
+        tail = None
+        try:
+            if name.startswith('syslog'):
+                address_bucket = name.split(',', 1)[0]
+                host, port, address = net.ipv4_address(
+                    address=address_bucket.split('=')[1], full_format=True, silent=True
+                )
+                # Right now we assume AFNET address/port...e.g. no support for unix sockets
+
+                if address in context.listeners:
+                    port = int(port)  # socket requires integer port
+                    tail = SyslogTail(address=(host, port))
+            else:
+                tail = FileTail(name)
+        except Exception as e:
+            context.log.error(
+                'failed to initialize pipeline for "%s" due to %s (maybe has no rights?)' % (name, e.__class__.__name__)
+            )
+            context.log.debug('additional info:', exc_info=True)
+
+        return tail
+
     def _setup_meta_collector(self):
         collector_cls = self._import_collector_class('nginx', 'meta')
         self.collectors.append(
@@ -178,55 +216,59 @@ class NginxObject(AbstractObject):
 
     def _setup_config_collector(self):
         collector = NginxConfigCollector(object=self, interval=self.intervals['configs'])
-        collector.collect() # run initial parse
+        try:
+            start_time = time.time()
+            collector.collect()  # run parse on startup
+        finally:
+            end_time = time.time()
+            context.log.debug(
+                '%s config parse on startup in %.3f' % (self.definition_hash, end_time - start_time)
+            )
+        self.collectors.append(collector)
+
+    def _restore_config_collector(self, previous):
+        collector = NginxConfigCollector(object=self, interval=self.intervals['configs'], previous=previous)
+        context.log.debug(
+            '%s restored previous config collector' % self.definition_hash
+        )
         self.collectors.append(collector)
 
     def _setup_access_logs(self):
         # access logs
-        for log_filename, format_name in self.config.access_logs.iteritems():
+        for log_description, format_name in self.config.access_logs.iteritems():
             log_format = self.config.log_formats.get(format_name)
-            try:
+            tail = self.__setup_pipeline(log_description)
+
+            if tail:
                 self.collectors.append(
                     NginxAccessLogsCollector(
                         object=self,
                         interval=self.intervals['logs'],
-                        filename=log_filename,
                         log_format=log_format,
+                        tail=tail
                     )
                 )
 
                 # Send access log discovery event.
-                self.eventd.event(level=INFO, message='nginx access log %s found' % log_filename)
-            except (IOError, OSError) as e:
-                exception_name = e.__class__.__name__
-                context.log.warning(
-                    'failed to start reading log %s due to %s (maybe has no rights?)' %
-                    (log_filename, exception_name)
-                )
-                context.log.debug('additional info:', exc_info=True)
+                self.eventd.event(level=INFO, message='nginx access log %s found' % log_description)
 
     def _setup_error_logs(self):
         # error logs
-        for log_filename, log_level in self.config.error_logs.iteritems():
-            try:
+        for log_description, log_level in self.config.error_logs.iteritems():
+            tail = self.__setup_pipeline(log_description)
+
+            if tail:
                 self.collectors.append(
                     NginxErrorLogsCollector(
                         object=self,
                         interval=self.intervals['logs'],
-                        filename=log_filename,
-                        level=log_level
+                        level=log_level,
+                        tail=tail
                     )
                 )
 
                 # Send error log discovery event.
-                self.eventd.event(level=INFO, message='nginx error log %s found' % log_filename)
-            except (OSError, IOError) as e:
-                exception_name = e.__class__.__name__
-                context.log.warning(
-                    'failed to start reading log %s due to %s (maybe has no rights?)' %
-                    (log_filename, exception_name)
-                )
-                context.log.debug('additional info:', exc_info=True)
+                self.eventd.event(level=INFO, message='nginx error log %s found' % log_description)
 
 
 class ContainerNginxObject(NginxObject):

@@ -50,7 +50,7 @@ class NginxMetaCollector(AbstractMetaCollector):
             'configure': self.object.parsed_v['configure'],
             'packages': {},
             'path': {'bin': self.object.bin_path, 'conf': self.object.conf_path},
-            'warnings': [],
+            'built_from_source': False,
             'ssl': self.object.parsed_v['ssl']
         }
         if not self.in_container:
@@ -84,9 +84,8 @@ class NginxMetaCollector(AbstractMetaCollector):
                 package = kv.group(1)
                 break
 
-        if dpkg_s_err:
-            if 'no_path' in dpkg_s_err[0]:
-                self.meta['warnings'].append('self-made binary, is not from any nginx package')
+        if 'no_path' in dpkg_s_err[0]:
+             self.meta['built_from_source'] = True
 
         if package:
             # get version
@@ -120,9 +119,8 @@ class CentosNginxMetaCollector(NginxMetaCollector):
         if rpm_out and rpm_out[0]:
             package, version = rpm_out[0].split()
 
-        if rpm_err:
-            if 'is not owned by' in rpm_err[0]:
-                self.meta['warnings'].append('self-made binary, is not from any nginx package')
+        if 'is not owned by' in rpm_err[0]:
+             self.meta['built_from_source'] = True
 
         if package:
             self.meta['packages'] = {package: version}
@@ -146,4 +144,4 @@ class FreebsdNginxMetaCollector(NginxMetaCollector):
             self.meta['packages'] = {package: version}
 
         elif 'was not found in the database' in pkg_out[0]:
-            self.meta['warnings'].append('self-made binary, is not from any nginx package')
+            self.meta['built_from_source'] = True

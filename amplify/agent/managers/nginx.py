@@ -25,7 +25,7 @@ LAUNCHERS = ['supervisord', 'supervisorctl', 'runsv', 'supervise']
 
 class NginxManager(ObjectManager):
     """
-    Maanger for Nginx objects.
+    Manager for Nginx objects.
     """
     name = 'nginx_manager'
     type = 'nginx'
@@ -78,8 +78,24 @@ class NginxManager(ObjectManager):
 
                     if current_obj.need_restart:
                         # restart object if needed
-                        context.log.debug('config was changed (pid %s)' % current_obj.pid)
+                        context.log.debug('nginx object restarting (master pid was %s)' % current_obj.pid)
                         data.update(self.object_configs.get(definition_hash, {}))  # push cloud config
+
+                        # pass on data from the last config collection to the new object
+                        config_collector = current_obj.collectors[0]
+                        data.update(
+                            config_data=dict(
+                                config=current_obj.config,
+                                previous=config_collector.previous
+                            )
+                        )
+
+                        # if there is information in the configd store, pass it from old to new object
+                        if current_obj.configd.current:
+                            data.update(
+                                configd=current_obj.configd
+                            )
+
                         new_obj = self._init_nginx_object(data=data)
 
                         # Send nginx config changed event.

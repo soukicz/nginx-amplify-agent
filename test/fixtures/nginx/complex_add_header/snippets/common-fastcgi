@@ -1,0 +1,2 @@
+	fastcgi_pass unix:/run/fcgiwrap.socket;
+	include snippets/common-cgi;

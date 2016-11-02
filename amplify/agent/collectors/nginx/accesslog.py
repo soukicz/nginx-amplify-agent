@@ -2,7 +2,8 @@
 from amplify.agent.collectors.abstract import AbstractCollector
 
 from amplify.agent.common.context import context
-from amplify.agent.common.util.tail import FileTail
+from amplify.agent.pipelines.abstract import Pipeline
+from amplify.agent.pipelines.file import FileTail
 from amplify.agent.objects.nginx.log.access import NginxAccessLogParser
 
 
@@ -121,7 +122,8 @@ class NginxAccessLogsCollector(AbstractCollector):
                 matched_filters = [filter for filter in self.filters if filter.match(parsed)]
                 super(NginxAccessLogsCollector, self).collect(parsed, matched_filters)
 
-        context.log.debug('%s processed %s lines from %s' % (self.object.definition_hash, count, self.filename))
+        tail_name = self.tail.name if isinstance(self.tail, Pipeline) else 'list'
+        context.log.debug('%s processed %s lines from %s' % (self.object.definition_hash, count, tail_name))
 
     def request_malformed(self):
         """

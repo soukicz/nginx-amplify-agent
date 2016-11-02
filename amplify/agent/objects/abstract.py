@@ -14,6 +14,8 @@ from amplify.agent.common.context import context
 from amplify.agent.common.util.threads import spawn
 from amplify.agent.common.util import host, loader
 
+from amplify.agent.pipelines.abstract import Pipeline
+
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
 __credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev", "Grant Hulegaard"]
@@ -49,7 +51,7 @@ class AbstractObject(object):
         self.statsd = StatsdClient(object=self, interval=max(self.intervals.values()))
         self.eventd = EventdClient(object=self)
         self.metad = MetadClient(object=self)
-        self.configd = ConfigdClient(object=self)
+        self.configd = self.data.get('configd', ConfigdClient(object=self))
         self.clients = {
             'meta': self.metad,
             'metrics': self.statsd,
@@ -122,6 +124,9 @@ class AbstractObject(object):
         # Kill raises errors with gevent.
         # for thread in self.threads:
         #     thread.kill()
+        for collector in self.collectors:
+            if hasattr(collector, 'tail') and isinstance(collector.tail, Pipeline):
+                collector.tail.stop()
         self.running = False
         context.log.debug('stopped object "%s" %s ' % (self.type, self.definition_hash))
 

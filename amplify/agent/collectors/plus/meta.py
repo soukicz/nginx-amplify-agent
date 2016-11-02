@@ -30,8 +30,7 @@ class PlusObjectMetaCollector(AbstractMetaCollector):
             'local_id': self.object.local_id,
             'root_uuid': None,
             'hostname': context.app_config['credentials']['imagename'] or context.hostname,
-            'version': None,
-            'warnings': []
+            'version': None
         }
         return meta
 

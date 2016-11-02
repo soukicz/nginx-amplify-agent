@@ -35,7 +35,6 @@ class PlusObjectMetaCollectorTestCase(BaseTestCase):
                 'local_id': 'a9b8f9caa98ee30806a4a7c17ba393330059317600d768e4c81b2d585f7b9a6a',
                 'root_uuid': 'root123',
                 'hostname': context.hostname,
-                'version': None,  # Version will fail because this test is done in a vacuum without parent nginx
-                'warnings': []
+                'version': None  # Version will fail because this test is done in a vacuum without parent nginx
             }
         ))

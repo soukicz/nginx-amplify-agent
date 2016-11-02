@@ -1,0 +1,4 @@
+	location ~ ^\.(jpe?g|tiff?|svg|gif|png|ico|css|zip|tgz|gz|rar|bz2|doc|xlsx?|exe|pdf|pptx?|txt|tar|wav|bmp|rtf|js|mp3)$ {
+		try_files $uri =404;
+		include snippets/area-static-data;
+	}

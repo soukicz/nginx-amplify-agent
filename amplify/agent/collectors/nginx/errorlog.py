@@ -3,7 +3,8 @@ from amplify.agent.collectors.abstract import AbstractCollector
 from amplify.agent.objects.nginx.log.error import NginxErrorLogParser
 
 from amplify.agent.common.context import context
-from amplify.agent.common.util.tail import FileTail
+from amplify.agent.pipelines.abstract import Pipeline
+from amplify.agent.pipelines.file import FileTail
 from amplify.agent.objects.nginx.config.config import ERROR_LOG_LEVELS
 
 __author__ = "Mike Belov"
@@ -49,7 +50,8 @@ class NginxErrorLogsCollector(AbstractCollector):
             if error:
                 super(NginxErrorLogsCollector, self).collect(error)
 
-        context.log.debug('%s processed %s lines from %s' % (self.object.definition_hash, count, self.filename))
+        tail_name = self.tail.name if isinstance(self.tail, Pipeline) else 'list'
+        context.log.debug('%s processed %s lines from %s' % (self.object.definition_hash, count, tail_name))
 
     def error_log_parsed(self, error):
         self.object.statsd.incr(error)

@@ -138,6 +138,11 @@ fi
 
 
 %changelog
+* Tue Nov 1 2016 Mike Belov <dedm@nginx.com> 0.40-1
+- 0.40-1
+- Syslog support
+- Bug fixes
+
 * Wed Sep 28 2016 Mike Belov <dedm@nginx.com> 0.39-3
 - 0.39-3
 - Bug fixes

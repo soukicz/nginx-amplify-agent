@@ -1,0 +1,2 @@
+	fastcgi_pass unix:/run/php5-fpm.sock;
+	include snippets/common-cgi;

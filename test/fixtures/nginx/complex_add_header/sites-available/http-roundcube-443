@@ -1,0 +1,77 @@
+server {
+	server_name test.domain.io "" " " _;
+
+	listen test.domain.io:443 default_server bind deferred reuseport so_keepalive=on;
+
+	gzip off;
+	gunzip off;
+	resolver 8.8.8.8 8.8.4.4 valid=300 ipv6=off;
+
+	### Content Security Policy
+	### https://wiki.mozilla.org/Security/Guidelines/Web_Security#Content_Security_Policy
+	###
+	add_header "Content-Security-Policy" "default-src https:; connect-src https:; font-src 'self'; frame-src 'self'; frame-ancestors 'self'; img-src data: 'self'; media-src 'self'; object-src 'self'; script-src 'unsafe-eval' 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'" always;
+
+	### Cross-origin Resource Sharing
+	### https://wiki.mozilla.org/Security/Guidelines/Web_Security#Cross-origin_Resource_Sharing
+	###
+	add_header "Access-Control-Allow-Origin" "$scheme://$server_name:443" always;
+
+	### HTTP Strict Transport Security
+	### https://wiki.mozilla.org/Security/Guidelines/Web_Security#HTTP_Strict_Transport_Security
+	###
+	add_header "Strict-Transport-Security" "max-age=31708800; includeSubDomains; preload" always;
+
+	### X-Content-Type-Options
+	### https://wiki.mozilla.org/Security/Guidelines/Web_Security#X-Content-Type-Options
+	###
+	add_header "X-Content-Type-Options" "nosniff" always;
+
+	### X-Frame-Options
+	### https://wiki.mozilla.org/Security/Guidelines/Web_Security#X-Frame-Options
+	###
+	add_header "X-Frame-Options" "SAMEORIGIN" always;
+
+	### X-XSS-Protection
+	### https://wiki.mozilla.org/Security/Guidelines/Web_Security#X-XSS-Protection
+	###
+	add_header "X-XSS-Protection" "1; mode=block" always;
+
+
+	error_page 404 /404.html;
+	location = /favicon.ico { root /var/www/test; }
+	location = /404.html    { root /var/www/test; internal; }
+	location = /_404.js     { root /var/www/test; }
+
+	root /usr/share/roundcube;
+
+	index index.php;
+	try_files $uri $uri/ =404;
+
+	location /index.php {
+		fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+		include snippets/common-cgi;
+		fastcgi_pass unix:/run/php/php7.0-fpm-roundcube.sock;
+	}
+
+	include snippets/loc-deny-dotfiles;
+
+	location ~ \.(png|gif|css|js|jpe?g|svg|woff|eot|ttf|tiff?|pdf|ico|mp3|wav|html?)$ {
+#		try_files $uri =404;
+		include snippets/area-static-data;
+	}
+
+	location /bin/       { include snippets/area-internal; }
+	location /config/    { include snippets/area-internal; }
+	location /installer/ { include snippets/area-internal; }
+	location /SQL/       { include snippets/area-internal; }
+
+	location ~ /(composer.json|config.inc.php.sample|config.inc.php.dist)$ {
+		include snippets/area-internal;
+	}
+
+	location ~ ^/(skins|program|plugins)/ {
+		include snippets/area-internal;
+	}
+}
+

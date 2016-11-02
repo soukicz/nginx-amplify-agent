@@ -1,0 +1,4 @@
+	open_file_cache max=2048 inactive=1800;
+	open_file_cache_errors on;
+#	open_file_cache_min_uses 1;
+#	open_file_cache_valid 60s;

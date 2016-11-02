@@ -93,8 +93,6 @@ class AbstractCollector(object):
         start_time = time.time()
         try:
             self.collect()
-        except:
-            raise
         finally:
             end_time = time.time()
             context.log.debug('%s collect in %.3f' % (self.object.definition_hash, end_time - start_time))
@@ -102,18 +100,18 @@ class AbstractCollector(object):
     def _sleep(self):
         time.sleep(self.interval)
 
-    def collect(self, *args):
+    def collect(self, *args, **kwargs):
         if self.zero_counters:
             self.init_counters()
 
         for method in self.methods:
             try:
-                method(*args)
+                method(*args, **kwargs)
             except Exception as e:
                 self.handle_exception(method, e)
 
     def handle_exception(self, method, exception):
-        context.log.error('failed to collect %s metric: %s raised %s%s' % (
+        context.log.error('%s failed to collect: %s raised %s%s' % (
             self.short_name,  method.__name__, exception.__class__.__name__,
             ' (in container)' if self.in_container else ''
         ))

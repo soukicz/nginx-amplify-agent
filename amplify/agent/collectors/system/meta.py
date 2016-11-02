@@ -52,8 +52,7 @@ class SystemMetaCollector(AbstractMetaCollector):
             'network': {'interfaces': [], 'default': None},
             'disk_partitions': [],
             'release': {'name': None, 'version_id': None, 'version': None},
-            'processor': {'cache': {}},
-            'warnings': []
+            'processor': {'cache': {}}
         }
         if not self.in_container:
             meta['hostname'] = self.object.hostname

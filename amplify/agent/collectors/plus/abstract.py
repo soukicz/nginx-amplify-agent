@@ -104,7 +104,8 @@ class UpstreamCollector(PlusStatusCollector):
         """
         # data.get('peers', data) is a workaround for supporting an old N+ format
         # http://nginx.org/en/docs/http/ngx_http_status_module.html#compatibility
-        for peer in data.get('peers', data):
+        peers = data.get('peers', data) if isinstance(data, dict) else data
+        for peer in peers:
             super(UpstreamCollector, self).collect_from_data(peer, stamp)
         try:
             self.finalize_latest()

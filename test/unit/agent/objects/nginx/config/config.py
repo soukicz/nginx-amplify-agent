@@ -78,7 +78,7 @@ class ConfigTestCase(BaseTestCase):
         assert_that(config.error_logs, has_key('/var/log/nginx-error.log'))
 
         # access logs
-        assert_that(config.access_logs, has_length(2))
+        assert_that(config.access_logs, has_length(6))
         assert_that(config.access_logs, has_item('/var/log/default.log'))
         assert_that(config.access_logs, has_item('/var/log/pp.log'))
         assert_that(config.access_logs['/var/log/pp.log'], equal_to('main'))

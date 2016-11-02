@@ -16,7 +16,16 @@ https =
 
 [cloud]
 api_url = 
-api_timeout = 
+api_timeout =
+
+[listeners]
+keys = syslog-default,syslog-alternate
+
+[listener_syslog-default]
+address = 127.0.0.1:12345
+
+[listener_syslog-alternate]
+address = 127.0.0.1:12346
 
 [loggers]
 keys = root,devnull,agent-default

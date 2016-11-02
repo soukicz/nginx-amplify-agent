@@ -1,0 +1,18 @@
+server {
+	server_name test.domain.io test.domain2.loc "" " " _;
+
+	listen test.domain.io:80 default_server bind deferred reuseport so_keepalive=off;
+	listen test.domain2.loc    default_server bind deferred reuseport so_keepalive=off;
+
+	access_log off;
+
+	keepalive_timeout 0;
+	keepalive_requests 0;
+
+	gzip off;
+
+	add_header Connection close always;
+	expires max;
+
+	return 301 https://test.domain.io$request_uri;
+}

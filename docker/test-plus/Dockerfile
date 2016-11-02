@@ -54,6 +54,7 @@ WORKDIR /amplify
 ADD nginx.conf /etc/nginx/nginx.conf
 ADD nginx2.conf /etc/nginx/nginx2.conf
 ADD nginx_bad_status.conf /etc/nginx/nginx_bad_status.conf
+ADD nginx_syslog.conf /etc/nginx/nginx_syslog.conf
 ADD supervisord.conf /etc/supervisord.conf
 
 # add ssl

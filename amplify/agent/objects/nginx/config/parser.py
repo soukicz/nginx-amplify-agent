@@ -111,7 +111,7 @@ class NginxConfigParser(object):
     contains_by_lua_key = Regex(r'\S+_by_lua\S*').setParseAction(set_line_number)
 
     key = (
-        ~MAP & ~ALIAS & ~PERL_SET & ~IF & ~SET & ~REWRITE & ~SERVER_NAME & ~SUB_FILTER
+        ~MAP & ~ALIAS & ~PERL_SET & ~IF & ~SET & ~REWRITE & ~SERVER_NAME & ~SUB_FILTER & ~ADD_HEADER
     ) + Word(alphanums + '$_:%?"~<>\/-+.,*()[]"' + "'").setParseAction(set_line_number)
 
     # For some reason this version from Paul McGuire does not trigger "set_line_number"...but the above does
@@ -133,7 +133,7 @@ class NginxConfigParser(object):
     language_include_value = CharsNotIn("'").setParseAction(set_line_number)
     strict_value = CharsNotIn("{};").setParseAction(set_line_number)
     sub_filter_value = (non_space_value | Regex(r"\'(.|\n)+?\'", )).setParseAction(set_line_number)
-    add_header_value = Regex('[^{};]*".+?"').setParseAction(set_line_number)
+    add_header_value = Regex(r'[^{};]*"[^"]+"').setParseAction(set_line_number)
 
     # map values
     map_value_one = QuotedString("'")  # Regex(r'\'([^\']|\s)*\'')
@@ -151,6 +151,17 @@ class NginxConfigParser(object):
         # key + value*(0,2) + semicolon
     ).setParseAction(set_line_number)
 
+    # String helpers
+    string = (QuotedString("'") | QuotedString('"')).setParseAction(set_line_number)
+    multi_line_string = (
+        QuotedString("'", multiline=True) |
+        QuotedString('"', multiline=True)
+    ).setParseAction(set_line_number)
+    multi_line_string_unquoted = (
+        QuotedString("'", multiline=True, unquoteResults=False) |
+        QuotedString('"', multiline=True, unquoteResults=False)
+    ).setParseAction(set_line_number)
+
     set = (
         SET + any_value + semicolon
     ).setParseAction(set_line_number)
@@ -161,14 +172,14 @@ class NginxConfigParser(object):
 
     perl_set = (
         PERL_SET + key +
-        (QuotedString("'", multiline=True) | QuotedString('"', multiline=True)) +
+        multi_line_string +
         semicolon
         # ~ singleQuote + language_include_value + singleQuote + semicolon
     ).setParseAction(set_line_number)
 
     lua_content = (
         (start_with_lua_key | contains_by_lua_key) +
-        (QuotedString("'", multiline=True) | QuotedString('"', multiline=True)) +
+        multi_line_string +
         semicolon
         # ~ singleQuote + language_include_value + singleQuote + semicolon
     ).setParseAction(set_line_number)
@@ -194,7 +205,10 @@ class NginxConfigParser(object):
     ).setParseAction(set_line_number)
 
     add_header = (
-        ADD_HEADER + non_space_value + add_header_value + semicolon
+        ADD_HEADER + (non_space_value | string) +
+        Optional(multi_line_string_unquoted | add_header_value | non_space_value) +
+        Optional(non_space_value) +
+        semicolon
     ).setParseAction(set_line_number)
 
     # script
@@ -581,7 +595,8 @@ class NginxConfigParser(object):
                 else:
                     # can be just an assigment, without value
                     if len(row) >= 2:
-                        key, value = row[0], ''.join(row[1:])
+                        key, value = row[0], '/s/'.join(row[1:])  # add special "spacer" character combination
+                        # this special spacer only is appears in complex "add_header" directives at the moment
                     else:
                         key, value = row[0], ''
 
@@ -644,6 +659,9 @@ class NginxConfigParser(object):
                         # save config value
                         indexed_value = self.__idx_save(value, file_index, row.line_number)
                         self.__simple_save(result, key, indexed_value)
+                    elif key == 'add_header':
+                        indexed_value = self.__idx_save(value.replace('/s/', ' '), file_index, row.line_number)
+                        self.__simple_save(result, key, indexed_value)
                     else:
                         indexed_value = self.__idx_save(value, file_index, row.line_number)
                         self.__simple_save(result, key, indexed_value)
@@ -656,6 +674,7 @@ class NginxConfigParser(object):
         # For performance, we should handle extra spaces in business logic instead of in pyparsing
         if isinstance(value, (str, unicode)):
             value = value.strip()
+            value = value.replace('/s/', '')  # replace special spacers from __logic_parse() if they are still here
 
         self.index.append((file_index, line))
         return value, new_index

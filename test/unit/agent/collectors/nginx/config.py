@@ -57,18 +57,18 @@ class ConfigCollectorTestCase(RealNginxTestCase):
         cfg_collector = nginx_obj.collectors[0]
 
         # check that NginxConfig.full_parse is not called again during collect
-        cfg_collector.collect()
+        cfg_collector.collect(no_delay=True)
         assert_that(NginxConfig.__full_parse_calls, equal_to(1))
-        cfg_collector.collect()
-        cfg_collector.collect()
+        cfg_collector.collect(no_delay=True)
+        cfg_collector.collect(no_delay=True)
         assert_that(NginxConfig.__full_parse_calls, equal_to(1))
 
         # change the collector's previous files record so that it will call full_parse
-        cfg_collector.previous_files = {}
-        cfg_collector.collect()
+        cfg_collector.previous['files'] = {}
+        cfg_collector.collect(no_delay=True)
         assert_that(NginxConfig.__full_parse_calls, equal_to(2))
-        cfg_collector.collect()
-        cfg_collector.collect()
+        cfg_collector.collect(no_delay=True)
+        cfg_collector.collect(no_delay=True)
         assert_that(NginxConfig.__full_parse_calls, equal_to(2))
 
     def test_test_run_time(self):
@@ -83,17 +83,17 @@ class ConfigCollectorTestCase(RealNginxTestCase):
         context.app_config['containers']['nginx']['max_test_duration'] = 0.0
 
         # running collect won't do anything until the config changes
-        cfg_collector.collect()
+        cfg_collector.collect(no_delay=True)
         assert_that(nginx_obj.run_config_test, equal_to(True))
 
         # change the collector's previous files record so that it will call full_parse
-        cfg_collector.previous_files = {}
+        cfg_collector.previous['files'] = {}
 
         # avoid restarting the object for testing
-        cfg_collector.previous_checksum = None
+        cfg_collector.previous['checksum'] = None
 
         # running collect should now cause the run_time to exceed 0.0, rendering run_config_test False
-        cfg_collector.collect()
+        cfg_collector.collect(no_delay=True)
         assert_that(nginx_obj.run_config_test, equal_to(False))
 
         events = nginx_obj.eventd.current.values()

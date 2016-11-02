@@ -589,3 +589,52 @@ class UpstreamCollectorTestCase(BaseTestCase):
 
         assert_that(timers['plus.upstream.header.time'][0], equal_to(16.749))
         assert_that(timers['plus.upstream.response.time'][0], equal_to(16.75))
+
+    def test_collect_complete_old_plus(self):
+        upstream = NginxUpstreamObject(local_name='secretupstream', parent_local_id='nginx123', root_uuid='root123')
+        upstream.plus_status_internal_url_cache = 'test_status'
+
+        # Get the upstream collector
+        upstream_collector = upstream.collectors[-1]
+        assert_that(upstream_collector.last_collect, equal_to(None))
+
+        context.plus_cache.put('test_status', (
+            {u'processes': {u'respawned': 0}, u'version': 5, u'upstreams': {u'secretupstream': [
+                {u'received': 0, u'fails': 0,
+                 u'responses': {u'5xx': 0, u'2xx': 0, u'4xx': 0, u'3xx': 0, u'1xx': 0, u'total': 0}, u'weight': 1,
+                 u'selected': 0, u'server': u'127.0.0.1:9999', u'state': u'up',
+                 u'health_checks': {u'fails': 0, u'checks': 0, u'unhealthy': 0}, u'unavail': 0, u'downtime': 0,
+                 u'active': 0, u'downstart': 0, u'requests': 0, u'backup': False, u'id': 0, u'sent': 0},
+                {u'received': 0, u'fails': 0,
+                 u'responses': {u'5xx': 0, u'2xx': 0, u'4xx': 0, u'3xx': 0, u'1xx': 0, u'total': 0}, u'weight': 1,
+                 u'selected': 0, u'server': u'104.236.93.23:80', u'state': u'up',
+                 u'health_checks': {u'fails': 0, u'checks': 0, u'unhealthy': 0}, u'unavail': 0, u'downtime': 0,
+                 u'active': 0, u'downstart': 0, u'requests': 0, u'backup': False, u'id': 1, u'sent': 0}]},
+             u'generation': 1, u'timestamp': 1474466062499,
+             u'connections': {u'active': 1, u'idle': 2, u'accepted': 3163, u'dropped': 0},
+             u'load_timestamp': 1473999906889, u'address': u'127.0.0.1', u'requests': {u'current': 1, u'total': 27850},
+             u'caches': {}, u'nginx_version': u'1.7.11', u'server_zones': {}},
+            1
+        ))
+
+        upstream_collector.collect()
+        assert_that(upstream_collector.last_collect, equal_to(1))
+
+        assert_that(upstream.statsd.current, not_(has_length(0)))
+
+        assert_that(upstream.statsd.current, not_(has_key('counter')))  # Counters need two data values to compute
+                                                                        # difference
+
+        assert_that(upstream.statsd.current, has_key('gauge'))
+        gauges = upstream.statsd.current['gauge']
+
+        for key in (
+            'plus.upstream.conn.active', 'plus.upstream.peer.count'
+        ):
+            assert_that(gauges, has_key(key))
+
+        assert_that(gauges['plus.upstream.conn.active'][0][1], equal_to(0))
+        assert_that(gauges['plus.upstream.peer.count'][0][1], equal_to(2))
+
+
+

@@ -34,9 +34,9 @@ class Context(Singleton):
 
         self.set_pid()
 
-        self.version_major = 0.39
-        self.version_build = 3
-        self.version = '%s-%s' % (self.version_major, self.version_build)
+        self.version_major = 0.40
+        self.version_build = 1
+        self.version = '%.2f-%s' % (self.version_major, self.version_build)
         self.environment = None
         self.imagename = None
         self.container_type = None
@@ -44,6 +44,7 @@ class Context(Singleton):
         self.default_log = None
         self.app_name = None
         self.app_config = None
+        self.listeners = None
         self.ids = {}
         self.action_ids = {}
         self.cloud_restart = False  # Handle improper duplicate logging of start/stop events.
@@ -75,6 +76,7 @@ class Context(Singleton):
     def setup(self, **kwargs):
         self._setup_app_config(**kwargs)
         self._setup_app_logs()
+        self._setup_app_listeners()
         self._setup_host_details()
         self._setup_http_client()
         self._setup_object_tank()
@@ -104,10 +106,38 @@ class Context(Singleton):
         if not self.app_config['credentials']['imagename'] and self.imagename:
             self.app_config['credentials']['imagename'] = self.imagename
 
+        # if in a container, sets self.uuid to a... not... ultimately unique id that's based on the imagename
+        if self.app_config['credentials']['imagename']:
+            self.app_config['credentials']['uuid'] = 'container-%s' % self.app_config['credentials']['imagename']
+
     def _setup_app_logs(self):
         from amplify.agent.common.util import logger
         logger.setup(self.app_config.filename)
         self.default_log = logger.get('%s-default' % self.app_name)
+
+    def _setup_app_listeners(self):
+        from amplify.agent.common.util import net
+        self.listeners = set()
+
+        # get a list of listener names
+        names = self.app_config.get('listeners', {}).get('keys', '').split(',')
+
+        # for each listener...
+        for name in names:
+            # ...try to find the definition...
+            listener_definition = self.app_config.get('listener_%s' % name)
+            # ...if there is a definition...
+            if listener_definition:
+                # ...try to find the address...
+                listener_address = listener_definition.get('address')
+                # ...if there is an address...
+                if listener_address is not None:
+                    # ...try to format and save the ipv4 address into the context store.
+                    try:
+                        _, _, formatted_address = net.ipv4_address(address=listener_address, full_format=True)
+                        self.listeners.add(formatted_address)
+                    except:
+                        pass  # just ignore bad ipv4 definitions for now
 
     def _setup_host_details(self):
         from amplify.agent.common.util.host import hostname, uuid

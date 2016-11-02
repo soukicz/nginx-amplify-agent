@@ -58,8 +58,8 @@ class BaseTestCase(TestCase):
         HTTPClient.get = fake_get
         HTTPClient.post = fake_post
 
-        import amplify.agent.common.util.tail
-        amplify.agent.common.util.tail.OFFSET_CACHE = {}
+        import amplify.agent.pipelines.file
+        amplify.agent.pipelines.file.OFFSET_CACHE = {}
 
     def teardown_method(self, method):
         pass

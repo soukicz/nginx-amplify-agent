@@ -38,6 +38,7 @@ class TestingConfig(Config):
                 )
             ),
             nginx=dict(
+                parse_delay=0,
                 upload_config=True,
                 run_test=True,
                 max_test_duration=10.0,
