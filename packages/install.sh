@@ -34,6 +34,13 @@ get_os_name () {
 	    os="centos"
 	    centos_flavor="red hat linux"
 	fi
+	
+	if [ "$os" = "amazonami" ]; then
+	    os="amzn"
+	    centos_flavor="amazon linux"
+	    release="latest"
+        fi
+
     # Otherwise it's getting a little bit more tricky
     else
 	if ! ls /etc/*-release > /dev/null 2>&1; then
